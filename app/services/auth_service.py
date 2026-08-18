@@ -8,6 +8,29 @@ from app.config import settings
 _SESSION_CACHE: Dict[str, Tuple[Dict[str, Any], float]] = {}
 CACHE_TTL_SECONDS = 60.0
 
+OWNER_USERNAMES = {"dragstonium"}
+OWNER_EMAILS = {"leo.dorier@outlook.com", "dragstonium@leolab.app", "admin@leolab.app"}
+OWNER_IDS = {"GI9AxAIjhshTIiW9Q6HEw2vSvEE9V82P", "dev-user", "test-admin"}
+
+
+def is_owner(actor: Optional[Dict[str, Any]] = None) -> bool:
+    """Checks whether the actor is the owner account (dragstonium)."""
+    if not actor:
+        return False
+    name = str(actor.get("name") or "").lower()
+    username = str(actor.get("username") or "").lower()
+    email = str(actor.get("email") or "").lower()
+    user_id = str(actor.get("id") or "")
+
+    if name in OWNER_USERNAMES or username in OWNER_USERNAMES:
+        return True
+    if email in OWNER_EMAILS:
+        return True
+    if user_id in OWNER_IDS:
+        return True
+    return False
+
+
 def _get_api_urls() -> List[str]:
     urls = []
     if settings.BETTER_AUTH_API_URL:
@@ -16,13 +39,34 @@ def _get_api_urls() -> List[str]:
         urls.append(settings.FALLBACK_AUTH_API_URL)
     return urls
 
+
+def _format_user_actor(user: Dict[str, Any]) -> Dict[str, Any]:
+    name = user.get("name") or user.get("username")
+    if not name and user.get("email"):
+        name = user.get("email").split("@")[0]
+    actor = {
+        "id": user.get("id"),
+        "email": user.get("email"),
+        "name": name or "Utilisateur",
+        "username": user.get("username") or name or "Utilisateur",
+    }
+    actor["is_owner"] = is_owner(actor)
+    return actor
+
+
 def verify_session(cookies: Dict[str, str], headers: Dict[str, str]) -> Optional[Dict[str, Any]]:
     """
     Verifies incoming session against Better Auth.
     Supports in-memory TTL caching of verified session tokens.
     """
     if not settings.AUTH_ENABLED:
-        return {"id": "dev-user", "email": "admin@leolab.app", "name": "Admin (Dev Mode)"}
+        return {
+            "id": "dev-user",
+            "email": "dragstonium@leolab.app",
+            "name": "dragstonium",
+            "username": "dragstonium",
+            "is_owner": True
+        }
 
     # Extract session token from cookies or Authorization header
     token = (
@@ -63,12 +107,7 @@ def verify_session(cookies: Dict[str, str], headers: Dict[str, str]) -> Optional
                 if res.status_code == 200:
                     data = res.json()
                     if data and isinstance(data, dict) and "user" in data:
-                        user = data["user"]
-                        actor = {
-                            "id": user.get("id"),
-                            "email": user.get("email"),
-                            "name": user.get("name") or user.get("email", "").split("@")[0],
-                        }
+                        actor = _format_user_actor(data["user"])
                         if token:
                             _SESSION_CACHE[token] = (actor, now + CACHE_TTL_SECONDS)
                         return actor
@@ -76,6 +115,7 @@ def verify_session(cookies: Dict[str, str], headers: Dict[str, str]) -> Optional
             continue
 
     return None
+
 
 def sign_in_better_auth(email: str, password: str) -> Tuple[bool, Optional[Dict[str, Any]], Optional[str], list]:
     """
@@ -91,9 +131,8 @@ def sign_in_better_auth(email: str, password: str) -> Tuple[bool, Optional[Dict[
                 res = client.post(url, json=payload, headers={"Accept": "application/json"})
                 if res.status_code == 200:
                     data = res.json()
-                    user = data.get("user") if isinstance(data, dict) else None
-                    
-                    # Extract set-cookie headers from response
+                    raw_user = data.get("user") if isinstance(data, dict) else None
+                    user = _format_user_actor(raw_user) if raw_user else None
                     raw_cookies = res.headers.get_list("set-cookie")
                     return True, user, None, raw_cookies
                 elif res.status_code in (400, 401):

@@ -62,3 +62,65 @@ def test_protected_routes_require_auth(client, monkeypatch):
         # Files list should return 401
         res_files = client.get("/api/files")
         assert res_files.status_code == 401
+
+
+def test_verify_gemini_settings_endpoint(client):
+    """Verify that /api/settings/verify-gemini validates API keys properly."""
+    mock_actor = {"id": "dev-user", "name": "dragstonium", "is_owner": True}
+    with patch("app.main.verify_session", return_value=mock_actor):
+        res = client.post("/api/settings/verify-gemini", json={"api_key": ""})
+        assert res.status_code in (200, 400)
+        assert "valid" in res.json()
+
+
+def test_non_owner_upload_blocked_without_key(client, sample_audio_file):
+    """Verify that a non-owner operator cannot upload without a custom Gemini API key."""
+    non_owner = {
+        "id": "regular-user",
+        "email": "nils@example.com",
+        "name": "Nils",
+        "username": "nils",
+        "is_owner": False
+    }
+    with patch("app.main.verify_session", return_value=non_owner):
+        with open(sample_audio_file, "rb") as f:
+            res = client.post(
+                "/api/upload",
+                files={"file": ("speech.mp3", f, "audio/mp3")},
+                data={"title": "Test Non Owner"}
+            )
+        assert res.status_code == 428
+        assert "Clé API Google Gemini requise" in res.json()["detail"]
+
+
+def test_non_owner_upload_allowed_with_custom_key(client, sample_audio_file, mock_extraction):
+    """Verify that a non-owner operator with custom key succeeds."""
+    non_owner = {
+        "id": "regular-user",
+        "email": "nils@example.com",
+        "name": "Nils",
+        "username": "nils",
+        "is_owner": False
+    }
+    with patch("app.main.verify_session", return_value=non_owner):
+        mock_res = {
+            "id": 999, "title": "Test Allowed", "original_filename": "speech.mp3",
+            "file_size": 1024, "duration_seconds": 120, "audio_format": "mp3",
+            "audio_file_path": "storage/uploads/speech.mp3",
+            "transcript_path": "storage/transcripts/speech.txt",
+            "transcript_file_path": "storage/transcripts/speech.txt",
+            "summary_path": "storage/summaries/speech.md",
+            "summary_file_path": "storage/summaries/speech.md",
+            "language": "en", "topics": ["test"], "key_points": ["point"], "action_items": [],
+            "raw_transcript": "transcript", "summary_text": "summary",
+            "created_at": "2026-08-18T00:00:00Z", "updated_at": "2026-08-18T00:00:00Z"
+        }
+        with patch("app.main.process_audio_file", return_value=mock_res):
+            with open(sample_audio_file, "rb") as f:
+                res = client.post(
+                    "/api/upload",
+                    files={"file": ("speech.mp3", f, "audio/mp3")},
+                    data={"title": "Test Non Owner", "api_key": "test_personal_key"}
+                )
+            assert res.status_code == 201
+            assert res.json()["title"] == "Test Allowed"

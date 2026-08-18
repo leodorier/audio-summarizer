@@ -56,7 +56,13 @@ class LoginRequest(BaseModel):
 async def get_current_actor(request: Request) -> Dict[str, Any]:
     """Dependency to authenticate operator session."""
     if not settings.AUTH_ENABLED:
-        return {"id": "dev-user", "email": "admin@leolab.app", "name": "Admin (Dev Mode)"}
+        return {
+            "id": "dev-user",
+            "email": "dragstonium@leolab.app",
+            "name": "dragstonium",
+            "username": "dragstonium",
+            "is_owner": True
+        }
     
     actor = verify_session(dict(request.cookies), dict(request.headers))
     if not actor:
@@ -131,8 +137,34 @@ def health_check():
 def get_stats(actor: Dict[str, Any] = Depends(get_current_actor)):
     return get_app_stats()
 
+
+class VerifyGeminiRequest(BaseModel):
+    api_key: Optional[str] = None
+
+
+@app.post("/api/settings/verify-gemini")
+async def verify_gemini_key(req: VerifyGeminiRequest, actor: Dict[str, Any] = Depends(get_current_actor)):
+    """Verifies a custom or server-configured Google Gemini API key."""
+    key = (req.api_key.strip() if req.api_key else None) or settings.GEMINI_API_KEY or os.environ.get("GEMINI_API_KEY")
+    if not key:
+        return JSONResponse({"valid": False, "error": "Aucune clé API Gemini fournie."}, status_code=400)
+    
+    try:
+        from google import genai
+        client = genai.Client(api_key=key)
+        resp = client.models.generate_content(
+            model="gemini-2.5-flash-lite",
+            contents="ping"
+        )
+        if resp and resp.text:
+            return {"valid": True, "model": "gemini-2.5-flash-lite"}
+        return {"valid": False, "error": "Réponse vide de l'API Gemini."}
+    except Exception as e:
+        return JSONResponse({"valid": False, "error": str(e)}, status_code=400)
+
 @app.post("/api/upload", response_model=AudioRecordResponse, status_code=status.HTTP_201_CREATED)
 async def upload_audio(
+    request: Request,
     file: UploadFile = File(...),
     title: Optional[str] = Form(None),
     api_key: Optional[str] = Form(None),
@@ -156,12 +188,21 @@ async def upload_audio(
         shutil.copyfileobj(file.file, tmp)
         tmp_path = Path(tmp.name)
     
+    custom_key = (api_key or request.headers.get("x-gemini-api-key") or "").strip()
+    user_is_owner = actor.get("is_owner", False)
+
+    if not custom_key and not user_is_owner:
+        raise HTTPException(
+            status_code=428,
+            detail="Clé API Google Gemini requise. Veuillez configurer votre clé personnelle dans les paramètres."
+        )
+
     try:
         record = process_audio_file(
             source_audio_path=tmp_path,
             original_filename=filename,
             custom_title=title,
-            api_key=api_key,
+            api_key=custom_key or None,
             model_name=model
         )
         return record

@@ -61,7 +61,8 @@ function showDashboard() {
     if (mainDashboard) mainDashboard.classList.remove('hidden');
     
     if (userEmailText && currentUser) {
-        userEmailText.textContent = currentUser.name || currentUser.email;
+        const displayName = currentUser.name || currentUser.username || (currentUser.email ? currentUser.email.split('@')[0] : 'User');
+        userEmailText.textContent = displayName;
     }
 
     lucide.createIcons();
@@ -436,21 +437,41 @@ async function processAudioUpload() {
     const indicator = document.getElementById('processing-indicator');
     const titleInput = document.getElementById('custom-title-input');
 
+    const customKey = (localStorage.getItem('custom_gemini_api_key') || '').trim();
+    const isUserOwner = currentUser && (currentUser.is_owner === true || (currentUser.name || '').toLowerCase() === 'dragstonium');
+
+    if (!customKey && !isUserOwner) {
+        openSettingsModal();
+        showSettingsAlert("⚠️ Action required: Please configure your personal Google Gemini API key to transcribe and summarize audio files.", "error");
+        return;
+    }
+
     const formData = new FormData();
     formData.append('file', selectedFile);
     if (titleInput.value.trim()) {
         formData.append('title', titleInput.value.trim());
+    }
+    if (customKey) {
+        formData.append('api_key', customKey);
     }
 
     btnProcess.disabled = true;
     indicator.classList.remove('hidden');
 
     try {
+        const headers = customKey ? { 'X-Gemini-Api-Key': customKey } : {};
         const res = await fetch('/api/upload', {
             method: 'POST',
             credentials: 'include',
+            headers: headers,
             body: formData
         });
+
+        if (res.status === 428) {
+            openSettingsModal();
+            showSettingsAlert("⚠️ Google Gemini API key required. Please enter your personal key below to continue.", "error");
+            throw new Error("Gemini API key required.");
+        }
 
         if (res.status === 401) {
             showLoginScreen();
@@ -521,4 +542,137 @@ function escapeHtml(str) {
         .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;')
         .replace(/'/g, '&#039;');
+}
+
+
+// ==========================================
+// Settings Modal & API Key Management
+// ==========================================
+
+function openSettingsModal() {
+    const modal = document.getElementById('settingsModal');
+    const userEmailEl = document.getElementById('settingsUserEmail');
+    const keyInput = document.getElementById('settingsGeminiKeyInput');
+    
+    const displayName = (currentUser && (currentUser.name || currentUser.username)) || 'User';
+    const email = (currentUser && currentUser.email) || '';
+    if (userEmailEl) {
+        userEmailEl.textContent = `Signed in as: ${displayName}${email ? ' (' + email + ')' : ''}`;
+    }
+    
+    hideSettingsAlert();
+    const savedKey = localStorage.getItem('custom_gemini_api_key') || '';
+    if (keyInput) keyInput.value = savedKey;
+    updateGeminiKeyBadge(savedKey);
+    
+    if (modal) modal.classList.remove('hidden');
+    if (window.lucide) lucide.createIcons();
+}
+
+function closeSettingsModal() {
+    const modal = document.getElementById('settingsModal');
+    if (modal) modal.classList.add('hidden');
+}
+
+function closeSettingsModalOnOverlay(e) {
+    if (e.target.id === 'settingsModal') {
+        closeSettingsModal();
+    }
+}
+
+function showSettingsAlert(msg, type = 'success') {
+    const alert = document.getElementById('settingsAlert');
+    if (!alert) return;
+    alert.classList.remove('hidden', 'bg-emerald-950/60', 'border-emerald-800', 'text-emerald-300', 'bg-red-950/60', 'border-red-800', 'text-red-300', 'bg-sky-950/60', 'border-sky-800', 'text-sky-300');
+    
+    if (type === 'success') {
+        alert.classList.add('bg-emerald-950/60', 'border-emerald-800', 'text-emerald-300');
+    } else if (type === 'error') {
+        alert.classList.add('bg-red-950/60', 'border-red-800', 'text-red-300');
+    } else {
+        alert.classList.add('bg-sky-950/60', 'border-sky-800', 'text-sky-300');
+    }
+    alert.innerHTML = msg;
+}
+
+function hideSettingsAlert() {
+    const alert = document.getElementById('settingsAlert');
+    if (alert) alert.classList.add('hidden');
+}
+
+function updateGeminiKeyBadge(key) {
+    const badge = document.getElementById('geminiKeyStatusBadge');
+    const deleteBtn = document.getElementById('btnDeleteKey');
+    if (!badge) return;
+    if (key && key.trim()) {
+        badge.textContent = '✨ Custom Key Active';
+        badge.className = 'text-[10px] px-2 py-0.5 rounded-full font-medium bg-emerald-950 text-emerald-300 border border-emerald-800';
+        if (deleteBtn) deleteBtn.classList.remove('hidden');
+    } else {
+        badge.textContent = '⚙️ Server Default';
+        badge.className = 'text-[10px] px-2 py-0.5 rounded-full font-medium bg-slate-800 text-slate-400 border border-slate-700';
+        if (deleteBtn) deleteBtn.classList.add('hidden');
+    }
+}
+
+function toggleGeminiKeyVisibility() {
+    const input = document.getElementById('settingsGeminiKeyInput');
+    const btn = document.getElementById('btnToggleKeyVis');
+    if (!input || !btn) return;
+    if (input.type === 'password') {
+        input.type = 'text';
+        btn.textContent = '🔒';
+    } else {
+        input.type = 'password';
+        btn.textContent = '👁️';
+    }
+}
+
+async function testGeminiKey() {
+    const input = document.getElementById('settingsGeminiKeyInput');
+    const testBtn = document.getElementById('btnTestKey');
+    const key = input ? input.value.trim() : '';
+    
+    showSettingsAlert('⏳ Testing connection to Google Gemini API...', 'info');
+    if (testBtn) testBtn.disabled = true;
+    
+    try {
+        const res = await fetch('/api/settings/verify-gemini', {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ api_key: key || undefined })
+        });
+        const data = await res.json();
+        if (res.ok && data.valid) {
+            showSettingsAlert('✅ Connection verified! Gemini API key is working perfectly.', 'success');
+        } else {
+            showSettingsAlert('❌ Verification failed: ' + (data.error || 'Invalid API key.'), 'error');
+        }
+    } catch (err) {
+        showSettingsAlert('❌ Error testing key: ' + err.message, 'error');
+    } finally {
+        if (testBtn) testBtn.disabled = false;
+    }
+}
+
+function saveGeminiKey() {
+    const input = document.getElementById('settingsGeminiKeyInput');
+    const key = input ? input.value.trim() : '';
+    if (key) {
+        localStorage.setItem('custom_gemini_api_key', key);
+        showSettingsAlert('💾 Custom Gemini API key saved successfully for your session!', 'success');
+    } else {
+        localStorage.removeItem('custom_gemini_api_key');
+        showSettingsAlert('ℹ️ Custom key removed. System will use server default configuration.', 'info');
+    }
+    updateGeminiKeyBadge(key);
+}
+
+function deleteGeminiKey() {
+    localStorage.removeItem('custom_gemini_api_key');
+    const input = document.getElementById('settingsGeminiKeyInput');
+    if (input) input.value = '';
+    updateGeminiKeyBadge('');
+    showSettingsAlert('🗑️ Custom Gemini API key removed. Reverted to server configuration.', 'info');
 }

@@ -67,7 +67,7 @@
             <form id="login-form" action="javascript:void(0);" onsubmit="handleLogin(event)" class="space-y-4">
                 <div class="space-y-1">
                     <label class="text-xs font-semibold text-slate-300" for="login-email">Email Address</label>
-                    <input type="email" id="login-email" name="email" required autocomplete="username email" placeholder="admin@leolab.app" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-emerald-500 transition">
+                    <input type="email" id="login-email" name="email" required autocomplete="username email" placeholder="votre@email.com" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-emerald-500 transition">
                 </div>
 
                 <div class="space-y-1">
@@ -113,8 +113,12 @@
                     <!-- User Profile & Logout -->
                     <div id="user-badge" class="flex items-center gap-2 bg-slate-800/80 border border-slate-700 px-3 py-1.5 rounded-lg text-xs">
                         <i data-lucide="user" class="w-3.5 h-3.5 text-emerald-400"></i>
-                        <span id="user-email-text" class="text-slate-300 font-medium">user</span>
-                        <button id="btn-logout" onclick="handleLogout()" title="Sign Out" class="text-slate-400 hover:text-red-400 pl-1.5 transition cursor-pointer">
+                        <span id="user-name-text" class="text-slate-300 font-medium">user</span>
+                        <span class="text-slate-600">|</span>
+                        <button id="btn-settings" onclick="openSettingsModal()" title="Settings & API Key" class="text-slate-400 hover:text-emerald-400 transition cursor-pointer">
+                            <i data-lucide="settings" class="w-3.5 h-3.5"></i>
+                        </button>
+                        <button id="btn-logout" onclick="handleLogout()" title="Sign Out" class="text-slate-400 hover:text-red-400 transition cursor-pointer">
                             <i data-lucide="log-out" class="w-3.5 h-3.5"></i>
                         </button>
                     </div>
@@ -336,5 +340,75 @@
 
     <!-- Scripts -->
     <script src="/app.js?v=1.0.3"></script>
+
+    <!-- Settings Modal (Replicated from instagram-extractor) -->
+    <div id="settingsModal" onclick="closeSettingsModalOnOverlay(event)" class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm hidden flex items-center justify-center p-4">
+        <div class="w-full max-w-lg bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col" onclick="event.stopPropagation()">
+            <!-- Modal Header -->
+            <div class="p-4 sm:p-5 border-b border-slate-800 bg-slate-950/70 flex items-center justify-between">
+                <div>
+                    <div class="flex items-center gap-2 mb-0.5">
+                        <span class="px-2 py-0.5 text-[10px] font-bold rounded-md bg-emerald-950 text-emerald-400 border border-emerald-800">⚙️ Preferences</span>
+                    </div>
+                    <h2 class="text-base font-bold text-white tracking-tight">Account & API Settings</h2>
+                    <p class="text-xs text-slate-400" id="settingsUserEmail">Signed in as: ...</p>
+                </div>
+                <button onclick="closeSettingsModal()" class="text-slate-400 hover:text-white p-2 text-base transition cursor-pointer">✕</button>
+            </div>
+
+            <!-- Modal Body -->
+            <div class="p-5 sm:p-6 space-y-4 overflow-y-auto max-h-[75vh]">
+                <!-- Status Alert Notification -->
+                <div id="settingsAlert" class="hidden p-3 rounded-xl text-xs border"></div>
+
+                <!-- Google Gemini API Key Section -->
+                <div class="bg-slate-950/70 border border-slate-800 rounded-xl p-4 space-y-3">
+                    <div class="flex items-center justify-between">
+                        <h3 class="text-xs font-bold text-white flex items-center gap-1.5 uppercase tracking-wider">
+                            <span>✨</span> Google Gemini API Key
+                        </h3>
+                        <span id="geminiKeyStatusBadge" class="text-[10px] px-2 py-0.5 rounded-full font-medium bg-slate-800 text-slate-400 border border-slate-700">Checking...</span>
+                    </div>
+
+                    <p class="text-xs text-slate-400 leading-relaxed">
+                        Required for transcription and structured executive summaries. You can generate a free API key at <a href="https://aistudio.google.com/app/apikey" target="_blank" class="text-emerald-400 underline hover:text-emerald-300">Google AI Studio ↗</a>.
+                    </p>
+
+                    <div class="flex gap-2">
+                        <input type="password" id="settingsGeminiKeyInput" placeholder="Enter Gemini API key (AIzaSy...)"
+                            class="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs font-mono text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500 transition">
+                        <button type="button" onclick="toggleGeminiKeyVisibility()" id="btnToggleKeyVis" title="Show/Hide"
+                            class="px-3 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 text-xs transition cursor-pointer">
+                            👁️
+                        </button>
+                    </div>
+
+                    <div class="flex items-center justify-between pt-1">
+                        <button type="button" id="btnDeleteKey" onclick="deleteGeminiKey()" class="text-xs text-red-400 hover:text-red-300 transition cursor-pointer hidden">
+                            🗑️ Clear Key
+                        </button>
+                        <div class="flex items-center gap-2 ml-auto">
+                            <button type="button" id="btnTestKey" onclick="testGeminiKey()"
+                                class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-medium transition cursor-pointer">
+                                🧪 Test Key
+                            </button>
+                            <button type="button" id="btnSaveKey" onclick="saveGeminiKey()"
+                                class="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold transition shadow cursor-pointer">
+                                💾 Save Key
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Modal Footer -->
+            <div class="p-4 border-t border-slate-800 bg-slate-950/70 flex justify-end">
+                <button type="button" onclick="closeSettingsModal()" class="px-4 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium transition cursor-pointer">
+                    Close
+                </button>
+            </div>
+        </div>
+    </div>
+
 </body>
 </html>
