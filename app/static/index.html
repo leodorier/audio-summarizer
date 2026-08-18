@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Audio Summarizer | Speech-to-Text & Intelligence</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#f0fdf4',
+                            100: '#dcfce7',
+                            500: '#22c55e',
+                            600: '#16a34a',
+                            700: '#15803d',
+                        },
+                        dark: {
+                            900: '#0f172a',
+                            800: '#1e293b',
+                            700: '#334155',
+                            600: '#475569',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Marked.js for markdown rendering -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <link rel="stylesheet" href="/styles.css">
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col font-sans antialiased">
+    <!-- Top Navigation Bar -->
+    <header class="border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-40">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-lg shadow-emerald-500/20">
+                    <i data-lucide="mic" class="w-5 h-5 text-white"></i>
+                </div>
+                <div>
+                    <h1 class="text-lg font-bold text-white tracking-tight flex items-center gap-2">
+                        Audio Summarizer
+                        <span class="text-xs px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">v1.0</span>
+                    </h1>
+                    <p class="text-xs text-slate-400">Speech-to-Text & Gemini Knowledge Distillation</p>
+                </div>
+            </div>
+            
+            <div class="flex items-center space-x-4">
+                <div id="stats-badge" class="hidden sm:flex items-center space-x-3 text-xs bg-slate-800/80 border border-slate-700 px-3 py-1.5 rounded-lg">
+                    <span class="text-slate-400">Total Audios: <strong id="stat-files" class="text-emerald-400">0</strong></span>
+                    <span class="text-slate-600">•</span>
+                    <span class="text-slate-400">Duration: <strong id="stat-duration" class="text-emerald-400">0m</strong></span>
+                </div>
+                <a href="/docs" target="_blank" class="text-xs px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition flex items-center gap-1.5">
+                    <i data-lucide="code" class="w-3.5 h-3.5"></i>
+                    <span>Swagger API</span>
+                </a>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content Container -->
+    <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+        
+        <!-- Upload & Ingestion Section -->
+        <section class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl relative overflow-hidden">
+            <div class="absolute top-0 right-0 -mt-8 -mr-8 w-64 h-64 bg-emerald-500/5 rounded-full blur-3xl pointer-events-none"></div>
+            
+            <div class="max-w-3xl mx-auto text-center space-y-4">
+                <h2 class="text-2xl font-bold text-white tracking-tight">Upload Speech Audio for Distillation</h2>
+                <p class="text-sm text-slate-400">
+                    Upload any MP3, WAV, M4A, OGG, or FLAC audio file. Gemini will transcribe the complete speech verbatim and synthesize structured executive notes.
+                </p>
+
+                <!-- Drag & Drop Zone -->
+                <div id="drop-zone" class="border-2 border-dashed border-slate-700 hover:border-emerald-500/60 bg-slate-950/60 hover:bg-slate-900/80 transition-all duration-200 rounded-xl p-8 cursor-pointer flex flex-col items-center justify-center space-y-3 group">
+                    <input type="file" id="audio-input" class="hidden" accept=".mp3,.wav,.m4a,.ogg,.flac,.aac,.webm">
+                    
+                    <div class="w-14 h-14 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 group-hover:scale-110 group-hover:bg-emerald-500/20 transition duration-200">
+                        <i data-lucide="upload-cloud" class="w-7 h-7"></i>
+                    </div>
+                    
+                    <div class="text-center">
+                        <p class="text-sm font-semibold text-slate-200">
+                            Click to browse or drag & drop your audio file here
+                        </p>
+                        <p class="text-xs text-slate-500 mt-1">MP3, WAV, M4A, OGG, FLAC, AAC up to 250MB</p>
+                    </div>
+
+                    <div id="selected-file-display" class="hidden items-center gap-2 bg-emerald-950/60 border border-emerald-800/60 px-3 py-1.5 rounded-lg text-xs text-emerald-300">
+                        <i data-lucide="file-audio" class="w-4 h-4"></i>
+                        <span id="selected-filename" class="font-medium">filename.mp3</span>
+                    </div>
+                </div>
+
+                <!-- Optional Context & Submit Button -->
+                <div class="flex flex-col sm:flex-row gap-3 pt-2 max-w-xl mx-auto">
+                    <input type="text" id="custom-title-input" placeholder="Optional topic or title context..." class="flex-1 bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-emerald-500">
+                    
+                    <button id="btn-process" class="bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-semibold px-6 py-2.5 rounded-xl shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/30 transition duration-200 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
+                        <i data-lucide="sparkles" class="w-4 h-4"></i>
+                        <span>Process & Summarize</span>
+                    </button>
+                </div>
+
+                <!-- Processing Progress Overlay -->
+                <div id="processing-indicator" class="hidden pt-4 max-w-xl mx-auto text-left space-y-2">
+                    <div class="flex justify-between text-xs text-slate-300 font-medium">
+                        <span id="progress-status-text" class="flex items-center gap-2">
+                            <i data-lucide="loader-2" class="w-4 h-4 animate-spin text-emerald-400"></i>
+                            Uploading audio and transcribing speech...
+                        </span>
+                    </div>
+                    <div class="w-full bg-slate-800 rounded-full h-2 overflow-hidden">
+                        <div id="progress-bar-fill" class="bg-gradient-to-r from-emerald-500 to-teal-400 h-2 rounded-full w-full animate-pulse"></div>
+                    </div>
+                    <p class="text-[11px] text-slate-500 text-center">This may take 10–30 seconds depending on audio length.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Archive & Filter Controls -->
+        <section class="space-y-4">
+            <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div>
+                    <h2 class="text-xl font-bold text-white tracking-tight">Audio Knowledge Archive</h2>
+                    <p class="text-xs text-slate-400">Browse, filter, and inspect your processed recordings</p>
+                </div>
+
+                <!-- Filter Controls -->
+                <div class="flex flex-wrap items-center gap-3">
+                    <!-- Timeframe Filter Buttons -->
+                    <div class="flex items-center bg-slate-900 border border-slate-800 p-1 rounded-xl text-xs">
+                        <button data-timeframe="all" class="tf-btn px-3 py-1.5 rounded-lg font-medium transition bg-emerald-500 text-white">All Time</button>
+                        <button data-timeframe="last_week" class="tf-btn px-3 py-1.5 rounded-lg font-medium transition text-slate-400 hover:text-white">Last Week</button>
+                        <button data-timeframe="last_month" class="tf-btn px-3 py-1.5 rounded-lg font-medium transition text-slate-400 hover:text-white">Last Month</button>
+                        <button data-timeframe="last_year" class="tf-btn px-3 py-1.5 rounded-lg font-medium transition text-slate-400 hover:text-white">Last Year</button>
+                    </div>
+
+                    <!-- Search Input -->
+                    <div class="relative min-w-[240px]">
+                        <i data-lucide="search" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500"></i>
+                        <input type="text" id="search-input" placeholder="Search transcripts & tags..." class="w-full bg-slate-900 border border-slate-800 rounded-xl pl-9 pr-4 py-1.5 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-emerald-500">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Audio Cards Grid / Table -->
+            <div id="records-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <!-- Record Cards injected via app.js -->
+            </div>
+
+            <!-- Empty State -->
+            <div id="empty-state" class="hidden bg-slate-900/50 border border-slate-800/80 rounded-2xl p-12 text-center space-y-3">
+                <div class="w-12 h-12 rounded-full bg-slate-800 flex items-center justify-center mx-auto text-slate-500">
+                    <i data-lucide="inbox" class="w-6 h-6"></i>
+                </div>
+                <h3 class="text-sm font-semibold text-slate-300">No Audio Records Found</h3>
+                <p class="text-xs text-slate-500 max-w-sm mx-auto">Upload an audio recording above to transcribe speech and generate executive summaries.</p>
+            </div>
+        </section>
+    </main>
+
+    <!-- Modal for Detailed Record Viewer -->
+    <div id="detail-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-4xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden relative">
+            
+            <!-- Modal Header -->
+            <div class="p-6 border-b border-slate-800 flex items-start justify-between bg-slate-900/90">
+                <div class="space-y-1 pr-6">
+                    <div class="flex items-center gap-2">
+                        <span id="modal-lang-badge" class="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">EN</span>
+                        <span id="modal-date" class="text-xs text-slate-400">2026-08-18</span>
+                        <span class="text-slate-600">•</span>
+                        <span id="modal-duration" class="text-xs text-slate-400">3m 45s</span>
+                    </div>
+                    <h3 id="modal-title" class="text-xl font-bold text-white tracking-tight">Audio Title</h3>
+                </div>
+                <button id="btn-close-modal" class="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition">
+                    <i data-lucide="x" class="w-6 h-6"></i>
+                </button>
+            </div>
+
+            <!-- Audio Player Bar -->
+            <div class="px-6 py-3 bg-slate-950 border-b border-slate-800 flex items-center gap-4">
+                <i data-lucide="volume-2" class="w-5 h-5 text-emerald-400 shrink-0"></i>
+                <audio id="modal-audio-player" controls class="w-full h-8 outline-none"></audio>
+            </div>
+
+            <!-- Tabs Navigation -->
+            <div class="flex border-b border-slate-800 bg-slate-900/50 px-6">
+                <button id="tab-btn-summary" class="tab-btn px-4 py-3 text-sm font-semibold text-emerald-400 border-b-2 border-emerald-500 flex items-center gap-2">
+                    <i data-lucide="file-text" class="w-4 h-4"></i>
+                    <span>Executive Summary</span>
+                </button>
+                <button id="tab-btn-transcript" class="tab-btn px-4 py-3 text-sm font-medium text-slate-400 hover:text-slate-200 flex items-center gap-2">
+                    <i data-lucide="align-left" class="w-4 h-4"></i>
+                    <span>Verbatim Transcript</span>
+                </button>
+            </div>
+
+            <!-- Modal Body Content -->
+            <div class="p-6 overflow-y-auto flex-1 space-y-6">
+                <!-- Summary Tab Pane -->
+                <div id="pane-summary" class="space-y-6">
+                    <div id="modal-summary-content" class="prose prose-invert max-w-none text-slate-300 text-sm leading-relaxed">
+                        <!-- Rendered Summary Markdown -->
+                    </div>
+
+                    <!-- Key Points & Action Items -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t border-slate-800">
+                        <div class="bg-slate-950/60 border border-slate-800/80 rounded-xl p-4 space-y-2">
+                            <h4 class="text-xs font-bold text-slate-200 uppercase tracking-wider flex items-center gap-1.5">
+                                <i data-lucide="key" class="w-3.5 h-3.5 text-emerald-400"></i>
+                                Key Points & Takeaways
+                            </h4>
+                            <ul id="modal-key-points" class="text-xs text-slate-300 space-y-1.5 list-disc list-inside">
+                            </ul>
+                        </div>
+
+                        <div class="bg-slate-950/60 border border-slate-800/80 rounded-xl p-4 space-y-2">
+                            <h4 class="text-xs font-bold text-slate-200 uppercase tracking-wider flex items-center gap-1.5">
+                                <i data-lucide="check-circle" class="w-3.5 h-3.5 text-teal-400"></i>
+                                Action Items
+                            </h4>
+                            <ul id="modal-action-items" class="text-xs text-slate-300 space-y-1.5 list-disc list-inside">
+                            </ul>
+                        </div>
+                    </div>
+
+                    <!-- Tags -->
+                    <div class="flex items-center gap-2 flex-wrap pt-2">
+                        <span class="text-xs text-slate-500">Tags:</span>
+                        <div id="modal-tags" class="flex flex-wrap gap-1.5"></div>
+                    </div>
+                </div>
+
+                <!-- Transcript Tab Pane -->
+                <div id="pane-transcript" class="hidden space-y-4">
+                    <div class="bg-slate-950 border border-slate-800 rounded-xl p-4 max-h-96 overflow-y-auto">
+                        <p id="modal-transcript-text" class="text-xs text-slate-300 leading-relaxed font-mono whitespace-pre-wrap select-text"></p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Modal Footer Actions -->
+            <div class="p-4 bg-slate-900 border-t border-slate-800 flex flex-wrap items-center justify-between gap-3">
+                <button id="btn-modal-delete" class="text-xs text-red-400 hover:text-red-300 hover:bg-red-950/40 px-3 py-2 rounded-lg border border-red-900/40 transition flex items-center gap-1.5">
+                    <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                    <span>Delete Recording</span>
+                </button>
+
+                <div class="flex items-center gap-2">
+                    <button id="btn-copy-active" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-2 rounded-lg border border-slate-700 transition flex items-center gap-1.5">
+                        <i data-lucide="copy" class="w-3.5 h-3.5"></i>
+                        <span id="copy-btn-text">Copy Content</span>
+                    </button>
+                    
+                    <a id="btn-download-transcript" href="#" download class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-2 rounded-lg border border-slate-700 transition flex items-center gap-1.5">
+                        <i data-lucide="download" class="w-3.5 h-3.5"></i>
+                        <span>Transcript (.txt)</span>
+                    </a>
+
+                    <a id="btn-download-summary" href="#" download class="text-xs bg-emerald-600 hover:bg-emerald-500 text-white font-medium px-4 py-2 rounded-lg transition flex items-center gap-1.5 shadow-lg shadow-emerald-600/20">
+                        <i data-lucide="download" class="w-3.5 h-3.5"></i>
+                        <span>Summary (.md)</span>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="/app.js"></script>
+</body>
+</html>

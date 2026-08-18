@@ -1,0 +1,39 @@
+/* Custom Styles for Audio Summarizer */
+@keyframes pulseSlow {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.6; }
+}
+
+.animate-pulse-slow {
+    animation: pulseSlow 2.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Audio Player Custom Styling */
+audio::-webkit-media-controls-panel {
+    background-color: #0f172a;
+    color: #f8fafc;
+}
+
+audio::-webkit-media-controls-play-button,
+audio::-webkit-media-controls-mute-button {
+    filter: invert(1);
+}
+
+/* Scrollbar polish */
+::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+::-webkit-scrollbar-track {
+    background: #0f172a;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #334155;
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #475569;
+}

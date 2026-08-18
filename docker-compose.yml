@@ -1,0 +1,27 @@
+name: audio-summarizer
+
+services:
+  audio-summarizer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: audio-summarizer
+    hostname: audio-summarizer
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - ./storage:/app/storage
+      - ./app:/app/app
+    networks:
+      - reverse-proxy
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: "1"
+
+networks:
+  reverse-proxy:
+    name: reverse-proxy
+    external: true

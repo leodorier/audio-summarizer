@@ -1,0 +1,53 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+.venv/
+venv/
+ENV/
+
+# Environment variables
+.env
+
+# Testing & Coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Local Storage (Keep directory structure but ignore user media & sqlite data)
+storage/uploads/*
+!storage/uploads/.gitkeep
+storage/transcripts/*
+!storage/transcripts/.gitkeep
+storage/summaries/*
+!storage/summaries/.gitkeep
+storage/*.db
+storage/*.db-shm
+storage/*.db-wal
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
