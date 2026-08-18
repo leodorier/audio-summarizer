@@ -6,6 +6,22 @@ let selectedFile = null;
 let currentActiveRecord = null;
 let activeModalTab = 'summary';
 
+// Global 401 fetch interceptor
+const _originalFetch = window.fetch;
+window.fetch = async function(...args) {
+    // Default to credentials include if options provided or empty
+    if (args.length > 1 && typeof args[1] === 'object') {
+        if (!args[1].credentials) {
+            args[1].credentials = 'include';
+        }
+    }
+    const res = await _originalFetch.apply(this, args);
+    if (res.status === 401 && typeof args[0] === 'string' && !args[0].includes('/api/auth/')) {
+        showLoginScreen();
+    }
+    return res;
+};
+
 document.addEventListener('DOMContentLoaded', () => {
     lucide.createIcons();
     setupEventListeners();
@@ -14,7 +30,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 async function checkAuth() {
     try {
-        const res = await fetch('/api/auth/me');
+        const res = await fetch('/api/auth/me', { credentials: 'include' });
         const data = await res.json();
         if (data.authenticated && data.user) {
             currentUser = data.user;
@@ -32,6 +48,7 @@ function showLoginScreen() {
     const mainDashboard = document.getElementById('main-dashboard');
     if (loginScreen) loginScreen.classList.remove('hidden');
     if (mainDashboard) mainDashboard.classList.add('hidden');
+    currentUser = null;
     lucide.createIcons();
 }
 
@@ -52,63 +69,67 @@ function showDashboard() {
     fetchRecords();
 }
 
-function setupEventListeners() {
-    // Login Form Submit
-    const loginForm = document.getElementById('login-form');
+async function handleLogin(e) {
+    if (e && e.preventDefault) e.preventDefault();
+    const emailInput = document.getElementById('login-email');
+    const passwordInput = document.getElementById('login-password');
     const loginError = document.getElementById('login-error');
     const loginErrorText = document.getElementById('login-error-text');
     const btnLoginSubmit = document.getElementById('btn-login-submit');
+    const btnLoginText = document.getElementById('btn-login-text');
 
-    if (loginForm) {
-        loginForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const email = document.getElementById('login-email').value.trim();
-            const password = document.getElementById('login-password').value;
+    const email = emailInput ? emailInput.value.trim() : '';
+    const password = passwordInput ? passwordInput.value : '';
 
-            loginError.classList.add('hidden');
-            btnLoginSubmit.disabled = true;
-            btnLoginSubmit.innerHTML = '<span>Signing In...</span>';
+    if (!email || !password) return;
 
-            try {
-                const res = await fetch('/api/auth/login', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ email, password })
-                });
+    if (loginError) loginError.classList.add('hidden');
+    if (btnLoginSubmit) btnLoginSubmit.disabled = true;
+    if (btnLoginText) btnLoginText.textContent = 'Verifying...';
 
-                const data = await res.json();
-                if (res.ok && data.success) {
-                    currentUser = data.user;
-                    showDashboard();
-                } else {
-                    loginErrorText.textContent = data.error || 'Invalid email or password.';
-                    loginError.classList.remove('hidden');
-                    lucide.createIcons();
-                }
-            } catch (err) {
-                loginErrorText.textContent = 'Sign-in failed. Please check network connection.';
-                loginError.classList.remove('hidden');
-                lucide.createIcons();
-            } finally {
-                btnLoginSubmit.disabled = false;
-                btnLoginSubmit.innerHTML = '<span>Sign In</span><i data-lucide="arrow-right" class="w-4 h-4"></i>';
-                lucide.createIcons();
-            }
+    try {
+        const res = await fetch('/api/auth/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ email, password })
         });
-    }
 
-    // Logout
-    const btnLogout = document.getElementById('btn-logout');
-    if (btnLogout) {
-        btnLogout.addEventListener('click', async () => {
-            try {
-                await fetch('/api/auth/logout', { method: 'POST' });
-            } catch (e) {}
-            currentUser = null;
-            showLoginScreen();
-        });
-    }
+        const data = await res.json();
+        if (btnLoginSubmit) btnLoginSubmit.disabled = false;
+        if (btnLoginText) btnLoginText.textContent = 'Sign In';
 
+        if (res.ok && data.success) {
+            currentUser = data.user || { email, name: email.split('@')[0] };
+            showDashboard();
+        } else {
+            if (loginErrorText) loginErrorText.textContent = data.error || 'Invalid email or password.';
+            if (loginError) loginError.classList.remove('hidden');
+            lucide.createIcons();
+        }
+    } catch (err) {
+        if (btnLoginSubmit) btnLoginSubmit.disabled = false;
+        if (btnLoginText) btnLoginText.textContent = 'Sign In';
+        if (loginErrorText) loginErrorText.textContent = 'Connection error. Ensure Second Brain API is reachable.';
+        if (loginError) loginError.classList.remove('hidden');
+        lucide.createIcons();
+    }
+}
+
+async function handleLogout() {
+    if (!confirm('Are you sure you want to sign out?')) return;
+    try {
+        await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
+    } catch (e) {}
+    currentUser = null;
+    showLoginScreen();
+}
+
+// Expose globally
+window.handleLogin = handleLogin;
+window.handleLogout = handleLogout;
+
+function setupEventListeners() {
     // Drop zone handling
     const dropZone = document.getElementById('drop-zone');
     const audioInput = document.getElementById('audio-input');
@@ -211,16 +232,16 @@ function setupEventListeners() {
     if (tabBtnSummary && tabBtnTranscript) {
         tabBtnSummary.addEventListener('click', () => {
             activeModalTab = 'summary';
-            tabBtnSummary.className = 'tab-btn px-4 py-3 text-sm font-semibold text-emerald-400 border-b-2 border-emerald-500 flex items-center gap-2';
-            tabBtnTranscript.className = 'tab-btn px-4 py-3 text-sm font-medium text-slate-400 hover:text-slate-200 flex items-center gap-2';
+            tabBtnSummary.className = 'tab-btn px-4 py-3 text-sm font-semibold text-emerald-400 border-b-2 border-emerald-500 flex items-center gap-2 cursor-pointer';
+            tabBtnTranscript.className = 'tab-btn px-4 py-3 text-sm font-medium text-slate-400 hover:text-slate-200 flex items-center gap-2 cursor-pointer';
             paneSummary.classList.remove('hidden');
             paneTranscript.classList.add('hidden');
         });
 
         tabBtnTranscript.addEventListener('click', () => {
             activeModalTab = 'transcript';
-            tabBtnTranscript.className = 'tab-btn px-4 py-3 text-sm font-semibold text-emerald-400 border-b-2 border-emerald-500 flex items-center gap-2';
-            tabBtnSummary.className = 'tab-btn px-4 py-3 text-sm font-medium text-slate-400 hover:text-slate-200 flex items-center gap-2';
+            tabBtnTranscript.className = 'tab-btn px-4 py-3 text-sm font-semibold text-emerald-400 border-b-2 border-emerald-500 flex items-center gap-2 cursor-pointer';
+            tabBtnSummary.className = 'tab-btn px-4 py-3 text-sm font-medium text-slate-400 hover:text-slate-200 flex items-center gap-2 cursor-pointer';
             paneTranscript.classList.remove('hidden');
             paneSummary.classList.add('hidden');
         });
@@ -255,7 +276,7 @@ function setupEventListeners() {
 
 async function fetchStats() {
     try {
-        const res = await fetch('/api/stats');
+        const res = await fetch('/api/stats', { credentials: 'include' });
         if (res.status === 401) {
             showLoginScreen();
             return;
@@ -282,7 +303,7 @@ async function fetchRecords() {
     }
 
     try {
-        const res = await fetch(url);
+        const res = await fetch(url, { credentials: 'include' });
         if (res.status === 401) {
             showLoginScreen();
             return;
@@ -353,7 +374,7 @@ function renderRecordCard(item) {
 
 async function openRecordModal(recordId) {
     try {
-        const res = await fetch(`/api/files/${recordId}`);
+        const res = await fetch(`/api/files/${recordId}`, { credentials: 'include' });
         if (res.status === 401) {
             showLoginScreen();
             return;
@@ -427,6 +448,7 @@ async function processAudioUpload() {
     try {
         const res = await fetch('/api/upload', {
             method: 'POST',
+            credentials: 'include',
             body: formData
         });
 
@@ -459,7 +481,10 @@ async function processAudioUpload() {
 
 async function deleteRecord(recordId) {
     try {
-        const res = await fetch(`/api/files/${recordId}`, { method: 'DELETE' });
+        const res = await fetch(`/api/files/${recordId}`, {
+            method: 'DELETE',
+            credentials: 'include'
+        });
         if (res.status === 401) {
             showLoginScreen();
             return;

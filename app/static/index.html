@@ -34,7 +34,7 @@
     <script src="https://unpkg.com/lucide@latest"></script>
     <!-- Marked.js for markdown rendering -->
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-    <link rel="stylesheet" href="/styles.css">
+    <link rel="stylesheet" href="/styles.css?v=1.0.2">
 </head>
 <body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col font-sans antialiased">
     
@@ -57,19 +57,19 @@
                 <span id="login-error-text">Invalid email or password</span>
             </div>
 
-            <form id="login-form" class="space-y-4">
+            <form id="login-form" action="javascript:void(0);" onsubmit="handleLogin(event)" class="space-y-4">
                 <div class="space-y-1">
-                    <label class="text-xs font-semibold text-slate-300">Email Address</label>
-                    <input type="email" id="login-email" required placeholder="admin@leolab.app" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-emerald-500 transition">
+                    <label class="text-xs font-semibold text-slate-300" for="login-email">Email Address</label>
+                    <input type="email" id="login-email" name="email" required autocomplete="username email" placeholder="admin@leolab.app" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-emerald-500 transition">
                 </div>
 
                 <div class="space-y-1">
-                    <label class="text-xs font-semibold text-slate-300">Password</label>
-                    <input type="password" id="login-password" required placeholder="••••••••" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-emerald-500 transition">
+                    <label class="text-xs font-semibold text-slate-300" for="login-password">Password</label>
+                    <input type="password" id="login-password" name="password" required autocomplete="current-password" placeholder="••••••••" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-emerald-500 transition">
                 </div>
 
-                <button type="submit" id="btn-login-submit" class="w-full bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-semibold py-3 rounded-xl shadow-lg shadow-emerald-500/25 transition duration-200 flex items-center justify-center gap-2">
-                    <span>Sign In</span>
+                <button type="submit" id="btn-login-submit" class="w-full bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-semibold py-3 rounded-xl shadow-lg shadow-emerald-500/25 transition duration-200 flex items-center justify-center gap-2 cursor-pointer">
+                    <span id="btn-login-text">Sign In</span>
                     <i data-lucide="arrow-right" class="w-4 h-4"></i>
                 </button>
             </form>
@@ -107,7 +107,7 @@
                     <div id="user-badge" class="flex items-center gap-2 bg-slate-800/80 border border-slate-700 px-3 py-1.5 rounded-lg text-xs">
                         <i data-lucide="user" class="w-3.5 h-3.5 text-emerald-400"></i>
                         <span id="user-email-text" class="text-slate-300 font-medium">user</span>
-                        <button id="btn-logout" title="Sign Out" class="text-slate-400 hover:text-red-400 pl-1.5 transition">
+                        <button id="btn-logout" onclick="handleLogout()" title="Sign Out" class="text-slate-400 hover:text-red-400 pl-1.5 transition cursor-pointer">
                             <i data-lucide="log-out" class="w-3.5 h-3.5"></i>
                         </button>
                     </div>
@@ -158,7 +158,7 @@
                     <div class="flex flex-col sm:flex-row gap-3 pt-2 max-w-xl mx-auto">
                         <input type="text" id="custom-title-input" placeholder="Optional topic or title context..." class="flex-1 bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-emerald-500">
                         
-                        <button id="btn-process" class="bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-semibold px-6 py-2.5 rounded-xl shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/30 transition duration-200 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
+                        <button id="btn-process" class="bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-semibold px-6 py-2.5 rounded-xl shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/30 transition duration-200 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer">
                             <i data-lucide="sparkles" class="w-4 h-4"></i>
                             <span>Process & Summarize</span>
                         </button>
@@ -192,10 +192,10 @@
                     <div class="flex flex-wrap items-center gap-3">
                         <!-- Timeframe Filter Buttons -->
                         <div class="flex items-center bg-slate-900 border border-slate-800 p-1 rounded-xl text-xs">
-                            <button data-timeframe="all" class="tf-btn px-3 py-1.5 rounded-lg font-medium transition bg-emerald-500 text-white">All Time</button>
-                            <button data-timeframe="last_week" class="tf-btn px-3 py-1.5 rounded-lg font-medium transition text-slate-400 hover:text-white">Last Week</button>
-                            <button data-timeframe="last_month" class="tf-btn px-3 py-1.5 rounded-lg font-medium transition text-slate-400 hover:text-white">Last Month</button>
-                            <button data-timeframe="last_year" class="tf-btn px-3 py-1.5 rounded-lg font-medium transition text-slate-400 hover:text-white">Last Year</button>
+                            <button data-timeframe="all" class="tf-btn px-3 py-1.5 rounded-lg font-medium transition bg-emerald-500 text-white cursor-pointer">All Time</button>
+                            <button data-timeframe="last_week" class="tf-btn px-3 py-1.5 rounded-lg font-medium transition text-slate-400 hover:text-white cursor-pointer">Last Week</button>
+                            <button data-timeframe="last_month" class="tf-btn px-3 py-1.5 rounded-lg font-medium transition text-slate-400 hover:text-white cursor-pointer">Last Month</button>
+                            <button data-timeframe="last_year" class="tf-btn px-3 py-1.5 rounded-lg font-medium transition text-slate-400 hover:text-white cursor-pointer">Last Year</button>
                         </div>
 
                         <!-- Search Input -->
@@ -238,7 +238,7 @@
                     </div>
                     <h3 id="modal-title" class="text-xl font-bold text-white tracking-tight">Audio Title</h3>
                 </div>
-                <button id="btn-close-modal" class="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition">
+                <button id="btn-close-modal" class="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition cursor-pointer">
                     <i data-lucide="x" class="w-6 h-6"></i>
                 </button>
             </div>
@@ -251,11 +251,11 @@
 
             <!-- Tabs Navigation -->
             <div class="flex border-b border-slate-800 bg-slate-900/50 px-6">
-                <button id="tab-btn-summary" class="tab-btn px-4 py-3 text-sm font-semibold text-emerald-400 border-b-2 border-emerald-500 flex items-center gap-2">
+                <button id="tab-btn-summary" class="tab-btn px-4 py-3 text-sm font-semibold text-emerald-400 border-b-2 border-emerald-500 flex items-center gap-2 cursor-pointer">
                     <i data-lucide="file-text" class="w-4 h-4"></i>
                     <span>Executive Summary</span>
                 </button>
-                <button id="tab-btn-transcript" class="tab-btn px-4 py-3 text-sm font-medium text-slate-400 hover:text-slate-200 flex items-center gap-2">
+                <button id="tab-btn-transcript" class="tab-btn px-4 py-3 text-sm font-medium text-slate-400 hover:text-slate-200 flex items-center gap-2 cursor-pointer">
                     <i data-lucide="align-left" class="w-4 h-4"></i>
                     <span>Verbatim Transcript</span>
                 </button>
@@ -307,13 +307,13 @@
 
             <!-- Modal Footer Actions -->
             <div class="p-4 bg-slate-900 border-t border-slate-800 flex flex-wrap items-center justify-between gap-3">
-                <button id="btn-modal-delete" class="text-xs text-red-400 hover:text-red-300 hover:bg-red-950/40 px-3 py-2 rounded-lg border border-red-900/40 transition flex items-center gap-1.5">
+                <button id="btn-modal-delete" class="text-xs text-red-400 hover:text-red-300 hover:bg-red-950/40 px-3 py-2 rounded-lg border border-red-900/40 transition flex items-center gap-1.5 cursor-pointer">
                     <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
                     <span>Delete Recording</span>
                 </button>
 
                 <div class="flex items-center gap-2">
-                    <button id="btn-copy-active" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-2 rounded-lg border border-slate-700 transition flex items-center gap-1.5">
+                    <button id="btn-copy-active" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-2 rounded-lg border border-slate-700 transition flex items-center gap-1.5 cursor-pointer">
                         <i data-lucide="copy" class="w-3.5 h-3.5"></i>
                         <span id="copy-btn-text">Copy Content</span>
                     </button>
@@ -333,6 +333,6 @@
     </div>
 
     <!-- Scripts -->
-    <script src="/app.js"></script>
+    <script src="/app.js?v=1.0.2"></script>
 </body>
 </html>
