@@ -51,3 +51,4 @@ storage/*.db-wal
 *.swp
 *.swo
 .DS_Store
+storage/*.sqlite
