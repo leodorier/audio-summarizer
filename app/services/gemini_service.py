@@ -70,7 +70,7 @@ def transcribe_and_summarize_audio(
     # 1. Upload audio to Gemini File API
     remote_file = client.files.upload(
         file=str(audio_path),
-        mime_type=mime_type
+        config=types.UploadFileConfig(mime_type=mime_type)
     )
     
     try:
