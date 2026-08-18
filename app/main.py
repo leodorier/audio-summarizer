@@ -99,6 +99,20 @@ async def api_auth_logout():
         resp.delete_cookie(cookie_name, path="/")
     return resp
 
+@app.get("/favicon.ico", include_in_schema=False)
+def favicon():
+    ico_path = settings.PROJECT_ROOT / "app" / "static" / "favicon.ico"
+    if ico_path.exists():
+        return FileResponse(ico_path, media_type="image/x-icon")
+    return JSONResponse(status_code=404, content={"detail": "Favicon not found"})
+
+@app.get("/favicon.svg", include_in_schema=False)
+def favicon_svg():
+    svg_path = settings.PROJECT_ROOT / "app" / "static" / "favicon.svg"
+    if svg_path.exists():
+        return FileResponse(svg_path, media_type="image/svg+xml")
+    return JSONResponse(status_code=404, content={"detail": "Favicon not found"})
+
 # ==========================================
 # Core Application Endpoints
 # ==========================================
