@@ -5,7 +5,8 @@ from app.main import app
 from app.config import settings
 
 @pytest.fixture
-def client(temp_storage):
+def client(temp_storage, monkeypatch):
+    monkeypatch.setattr(settings, "AUTH_ENABLED", False)
     return TestClient(app)
 
 def test_health_check(client):

@@ -1,4 +1,5 @@
-// Audio Summarizer Client Logic
+// Audio Summarizer Client Logic with Better Auth Integration
+let currentUser = null;
 let currentTimeframe = 'all';
 let currentSearch = '';
 let selectedFile = null;
@@ -7,12 +8,107 @@ let activeModalTab = 'summary';
 
 document.addEventListener('DOMContentLoaded', () => {
     lucide.createIcons();
-    fetchStats();
-    fetchRecords();
     setupEventListeners();
+    checkAuth();
 });
 
+async function checkAuth() {
+    try {
+        const res = await fetch('/api/auth/me');
+        const data = await res.json();
+        if (data.authenticated && data.user) {
+            currentUser = data.user;
+            showDashboard();
+        } else {
+            showLoginScreen();
+        }
+    } catch (e) {
+        showLoginScreen();
+    }
+}
+
+function showLoginScreen() {
+    const loginScreen = document.getElementById('login-screen');
+    const mainDashboard = document.getElementById('main-dashboard');
+    if (loginScreen) loginScreen.classList.remove('hidden');
+    if (mainDashboard) mainDashboard.classList.add('hidden');
+    lucide.createIcons();
+}
+
+function showDashboard() {
+    const loginScreen = document.getElementById('login-screen');
+    const mainDashboard = document.getElementById('main-dashboard');
+    const userEmailText = document.getElementById('user-email-text');
+
+    if (loginScreen) loginScreen.classList.add('hidden');
+    if (mainDashboard) mainDashboard.classList.remove('hidden');
+    
+    if (userEmailText && currentUser) {
+        userEmailText.textContent = currentUser.name || currentUser.email;
+    }
+
+    lucide.createIcons();
+    fetchStats();
+    fetchRecords();
+}
+
 function setupEventListeners() {
+    // Login Form Submit
+    const loginForm = document.getElementById('login-form');
+    const loginError = document.getElementById('login-error');
+    const loginErrorText = document.getElementById('login-error-text');
+    const btnLoginSubmit = document.getElementById('btn-login-submit');
+
+    if (loginForm) {
+        loginForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const email = document.getElementById('login-email').value.trim();
+            const password = document.getElementById('login-password').value;
+
+            loginError.classList.add('hidden');
+            btnLoginSubmit.disabled = true;
+            btnLoginSubmit.innerHTML = '<span>Signing In...</span>';
+
+            try {
+                const res = await fetch('/api/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password })
+                });
+
+                const data = await res.json();
+                if (res.ok && data.success) {
+                    currentUser = data.user;
+                    showDashboard();
+                } else {
+                    loginErrorText.textContent = data.error || 'Invalid email or password.';
+                    loginError.classList.remove('hidden');
+                    lucide.createIcons();
+                }
+            } catch (err) {
+                loginErrorText.textContent = 'Sign-in failed. Please check network connection.';
+                loginError.classList.remove('hidden');
+                lucide.createIcons();
+            } finally {
+                btnLoginSubmit.disabled = false;
+                btnLoginSubmit.innerHTML = '<span>Sign In</span><i data-lucide="arrow-right" class="w-4 h-4"></i>';
+                lucide.createIcons();
+            }
+        });
+    }
+
+    // Logout
+    const btnLogout = document.getElementById('btn-logout');
+    if (btnLogout) {
+        btnLogout.addEventListener('click', async () => {
+            try {
+                await fetch('/api/auth/logout', { method: 'POST' });
+            } catch (e) {}
+            currentUser = null;
+            showLoginScreen();
+        });
+    }
+
     // Drop zone handling
     const dropZone = document.getElementById('drop-zone');
     const audioInput = document.getElementById('audio-input');
@@ -20,36 +116,40 @@ function setupEventListeners() {
     const selectedFilename = document.getElementById('selected-filename');
     const btnProcess = document.getElementById('btn-process');
 
-    dropZone.addEventListener('click', () => audioInput.click());
+    if (dropZone) {
+        dropZone.addEventListener('click', () => audioInput.click());
 
-    ['dragenter', 'dragover'].forEach(eventName => {
-        dropZone.addEventListener(eventName, (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            dropZone.classList.add('border-emerald-500', 'bg-slate-900');
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropZone.addEventListener(eventName, (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                dropZone.classList.add('border-emerald-500', 'bg-slate-900');
+            });
         });
-    });
 
-    ['dragleave', 'drop'].forEach(eventName => {
-        dropZone.addEventListener(eventName, (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            dropZone.classList.remove('border-emerald-500', 'bg-slate-900');
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                dropZone.classList.remove('border-emerald-500', 'bg-slate-900');
+            });
         });
-    });
 
-    dropZone.addEventListener('drop', (e) => {
-        const files = e.dataTransfer.files;
-        if (files.length > 0) {
-            handleFileSelection(files[0]);
-        }
-    });
+        dropZone.addEventListener('drop', (e) => {
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                handleFileSelection(files[0]);
+            }
+        });
+    }
 
-    audioInput.addEventListener('change', (e) => {
-        if (e.target.files.length > 0) {
-            handleFileSelection(e.target.files[0]);
-        }
-    });
+    if (audioInput) {
+        audioInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                handleFileSelection(e.target.files[0]);
+            }
+        });
+    }
 
     function handleFileSelection(file) {
         selectedFile = file;
@@ -59,13 +159,15 @@ function setupEventListeners() {
     }
 
     // Process button click
-    btnProcess.addEventListener('click', async () => {
-        if (!selectedFile) {
-            alert('Please select or drop an audio file first.');
-            return;
-        }
-        await processAudioUpload();
-    });
+    if (btnProcess) {
+        btnProcess.addEventListener('click', async () => {
+            if (!selectedFile) {
+                alert('Please select or drop an audio file first.');
+                return;
+            }
+            await processAudioUpload();
+        });
+    }
 
     // Timeframe filter buttons
     document.querySelectorAll('.tf-btn').forEach(btn => {
@@ -84,17 +186,19 @@ function setupEventListeners() {
     // Search input with debounce
     let searchTimeout = null;
     const searchInput = document.getElementById('search-input');
-    searchInput.addEventListener('input', (e) => {
-        clearTimeout(searchTimeout);
-        searchTimeout = setTimeout(() => {
-            currentSearch = e.target.value;
-            fetchRecords();
-        }, 300);
-    });
+    if (searchInput) {
+        searchInput.addEventListener('input', (e) => {
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(() => {
+                currentSearch = e.target.value;
+                fetchRecords();
+            }, 300);
+        });
+    }
 
     // Modal controls
-    document.getElementById('btn-close-modal').addEventListener('click', closeModal);
-    document.getElementById('detail-modal').addEventListener('click', (e) => {
+    document.getElementById('btn-close-modal')?.addEventListener('click', closeModal);
+    document.getElementById('detail-modal')?.addEventListener('click', (e) => {
         if (e.target.id === 'detail-modal') closeModal();
     });
 
@@ -104,39 +208,43 @@ function setupEventListeners() {
     const paneSummary = document.getElementById('pane-summary');
     const paneTranscript = document.getElementById('pane-transcript');
 
-    tabBtnSummary.addEventListener('click', () => {
-        activeModalTab = 'summary';
-        tabBtnSummary.className = 'tab-btn px-4 py-3 text-sm font-semibold text-emerald-400 border-b-2 border-emerald-500 flex items-center gap-2';
-        tabBtnTranscript.className = 'tab-btn px-4 py-3 text-sm font-medium text-slate-400 hover:text-slate-200 flex items-center gap-2';
-        paneSummary.classList.remove('hidden');
-        paneTranscript.classList.add('hidden');
-    });
+    if (tabBtnSummary && tabBtnTranscript) {
+        tabBtnSummary.addEventListener('click', () => {
+            activeModalTab = 'summary';
+            tabBtnSummary.className = 'tab-btn px-4 py-3 text-sm font-semibold text-emerald-400 border-b-2 border-emerald-500 flex items-center gap-2';
+            tabBtnTranscript.className = 'tab-btn px-4 py-3 text-sm font-medium text-slate-400 hover:text-slate-200 flex items-center gap-2';
+            paneSummary.classList.remove('hidden');
+            paneTranscript.classList.add('hidden');
+        });
 
-    tabBtnTranscript.addEventListener('click', () => {
-        activeModalTab = 'transcript';
-        tabBtnTranscript.className = 'tab-btn px-4 py-3 text-sm font-semibold text-emerald-400 border-b-2 border-emerald-500 flex items-center gap-2';
-        tabBtnSummary.className = 'tab-btn px-4 py-3 text-sm font-medium text-slate-400 hover:text-slate-200 flex items-center gap-2';
-        paneTranscript.classList.remove('hidden');
-        paneSummary.classList.add('hidden');
-    });
+        tabBtnTranscript.addEventListener('click', () => {
+            activeModalTab = 'transcript';
+            tabBtnTranscript.className = 'tab-btn px-4 py-3 text-sm font-semibold text-emerald-400 border-b-2 border-emerald-500 flex items-center gap-2';
+            tabBtnSummary.className = 'tab-btn px-4 py-3 text-sm font-medium text-slate-400 hover:text-slate-200 flex items-center gap-2';
+            paneTranscript.classList.remove('hidden');
+            paneSummary.classList.add('hidden');
+        });
+    }
 
     // Copy Content button
     const btnCopy = document.getElementById('btn-copy-active');
-    btnCopy.addEventListener('click', () => {
-        if (!currentActiveRecord) return;
-        const textToCopy = activeModalTab === 'summary' 
-            ? currentActiveRecord.summary_text 
-            : currentActiveRecord.raw_transcript;
-        
-        navigator.clipboard.writeText(textToCopy).then(() => {
-            const btnText = document.getElementById('copy-btn-text');
-            btnText.textContent = 'Copied!';
-            setTimeout(() => btnText.textContent = 'Copy Content', 2000);
+    if (btnCopy) {
+        btnCopy.addEventListener('click', () => {
+            if (!currentActiveRecord) return;
+            const textToCopy = activeModalTab === 'summary' 
+                ? currentActiveRecord.summary_text 
+                : currentActiveRecord.raw_transcript;
+            
+            navigator.clipboard.writeText(textToCopy).then(() => {
+                const btnText = document.getElementById('copy-btn-text');
+                btnText.textContent = 'Copied!';
+                setTimeout(() => btnText.textContent = 'Copy Content', 2000);
+            });
         });
-    });
+    }
 
     // Delete record from modal
-    document.getElementById('btn-modal-delete').addEventListener('click', async () => {
+    document.getElementById('btn-modal-delete')?.addEventListener('click', async () => {
         if (!currentActiveRecord) return;
         if (confirm(`Are you sure you want to permanently delete "${currentActiveRecord.title}"?`)) {
             await deleteRecord(currentActiveRecord.id);
@@ -148,6 +256,10 @@ function setupEventListeners() {
 async function fetchStats() {
     try {
         const res = await fetch('/api/stats');
+        if (res.status === 401) {
+            showLoginScreen();
+            return;
+        }
         if (res.ok) {
             const stats = await res.json();
             document.getElementById('stat-files').textContent = stats.total_files;
@@ -171,6 +283,10 @@ async function fetchRecords() {
 
     try {
         const res = await fetch(url);
+        if (res.status === 401) {
+            showLoginScreen();
+            return;
+        }
         if (!res.ok) throw new Error('Failed to fetch files');
         const data = await res.json();
 
@@ -238,6 +354,10 @@ function renderRecordCard(item) {
 async function openRecordModal(recordId) {
     try {
         const res = await fetch(`/api/files/${recordId}`);
+        if (res.status === 401) {
+            showLoginScreen();
+            return;
+        }
         if (!res.ok) throw new Error('Failed to load record');
         const record = await res.json();
         currentActiveRecord = record;
@@ -310,6 +430,11 @@ async function processAudioUpload() {
             body: formData
         });
 
+        if (res.status === 401) {
+            showLoginScreen();
+            return;
+        }
+
         if (!res.ok) {
             const err = await res.json();
             throw new Error(err.detail || 'Upload failed');
@@ -335,6 +460,10 @@ async function processAudioUpload() {
 async function deleteRecord(recordId) {
     try {
         const res = await fetch(`/api/files/${recordId}`, { method: 'DELETE' });
+        if (res.status === 401) {
+            showLoginScreen();
+            return;
+        }
         if (!res.ok) throw new Error('Failed to delete');
         await fetchStats();
         await fetchRecords();

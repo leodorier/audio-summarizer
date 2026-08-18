@@ -6,10 +6,12 @@
 `audio-summarizer` is a microservice and web portal designed to ingest speech audio files, transcribe them to text (STT), distill structured executive summaries via Google Gemini, and persist the outputs into separate Markdown/text files alongside SQLite metadata.
 
 ### Architecture Decisions
+- **Centralized Better Auth Proxy**:
+  - *Decision*: Secure the web portal and API routes using the centralized Better Auth gateway (`second-brain-brain-api:8787` on Docker network, fallback: `https://api-brain.leolab.app`).
+  - *Rationale*: Unified single sign-on across the whole suite (`ai-tool`, `instagram-extractor`, and `audio-summarizer`), with TTL session caching (60s) to minimize cross-container latency.
 - **Gemini Multimodal Audio vs Local Whisper**:
   - *Decision*: Leverage Google Gemini File API (`google-genai` SDK, `gemini-2.5-flash` / `gemini-3.7-flash`) for combined verbatim STT and structured knowledge distillation.
-  - *Rationale*: Zero heavy local GPU overhead, handles long-form audio files in standard audio containers, produces both verbatim speech transcript and structured JSON summaries (key points, action items, tags) in a single unified pass.
-  - *Rejected*: Running local large Faster-Whisper models on resource-constrained VPS.
+  - *Rationale*: Zero heavy local GPU overhead, handles long-form audio files in standard audio containers, produces both verbatim speech transcript and structured JSON summaries in a single unified pass.
 - **SQLite Single-Node Storage with WAL Mode**:
   - *Decision*: Use SQLite with `journal_mode=WAL` and `synchronous=NORMAL` in `storage/audio_summarizer.db`.
   - *Rationale*: Self-contained, zero network latency, file-backed persistence, matches `instagram-extractor` pattern.
@@ -28,10 +30,10 @@
 - **Cause**: Python resolves the current directory `mcp/` before the installed pip `mcp` package in `sys.path`.
 - **Fix**: Implemented path filtering and temporary `sys.modules.pop("mcp")` in `mcp/mcp_server.py` before importing `mcp.server.fastmcp`.
 
-### Pitfall 2: Audio File Size & Gemini File API
-- **Symptom**: Large audio files (>20MB) fail when sent as inline base64 data.
-- **Cause**: Gemini inline parts have payload limits.
-- **Fix**: Always use `client.files.upload(file=str(path))` and poll for state completion before calling `generate_content`, then delete the remote file in a `finally:` block.
+### Pitfall 2: Better Auth Session Token Cookie Names
+- **Symptom**: Session cookies not recognized in production HTTPS vs local development.
+- **Cause**: In production over HTTPS, Better Auth uses `__Secure-better-auth.session_token`, whereas non-TLS uses `better-auth.session_token`.
+- **Fix**: In `verify_session`, check both `better-auth.session_token` and `__Secure-better-auth.session_token` as well as Bearer headers.
 
 ---
 
@@ -40,6 +42,7 @@
 - **Domain**: `https://audiosum.leolab.app`
 - **Container Name**: `audio-summarizer`
 - **Internal Port**: `8000`
+- **Better Auth Endpoint**: `http://second-brain-brain-api:8787` (Fallback: `https://api-brain.leolab.app`)
 - **Storage Directory**: `/home/leo/projects/audio-summarizer/storage`
   - `uploads/`: Saved audio files
   - `transcripts/`: Full `.txt` and `.md` transcripts

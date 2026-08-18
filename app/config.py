@@ -14,6 +14,11 @@ class Settings(BaseSettings):
     HOST: str = "0.0.0.0"
     PORT: int = 8000
     
+    # Better Auth Configuration
+    AUTH_ENABLED: bool = True
+    BETTER_AUTH_API_URL: str = "http://second-brain-brain-api:8787"
+    FALLBACK_AUTH_API_URL: str = "https://api-brain.leolab.app"
+    
     # Gemini API
     GEMINI_API_KEY: str = ""
     GEMINI_MODEL: str = "gemini-2.5-flash"

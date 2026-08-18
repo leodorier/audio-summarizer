@@ -37,137 +37,191 @@
     <link rel="stylesheet" href="/styles.css">
 </head>
 <body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col font-sans antialiased">
-    <!-- Top Navigation Bar -->
-    <header class="border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-40">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-            <div class="flex items-center space-x-3">
-                <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-lg shadow-emerald-500/20">
-                    <i data-lucide="mic" class="w-5 h-5 text-white"></i>
-                </div>
-                <div>
-                    <h1 class="text-lg font-bold text-white tracking-tight flex items-center gap-2">
-                        Audio Summarizer
-                        <span class="text-xs px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">v1.0</span>
-                    </h1>
-                    <p class="text-xs text-slate-400">Speech-to-Text & Gemini Knowledge Distillation</p>
-                </div>
-            </div>
+    
+    <!-- Login Screen Overlay -->
+    <div id="login-screen" class="fixed inset-0 bg-slate-950 z-50 flex items-center justify-center p-4">
+        <div class="max-w-md w-full bg-slate-900 border border-slate-800 rounded-3xl p-8 shadow-2xl space-y-6 relative overflow-hidden">
+            <div class="absolute top-0 right-0 -mt-12 -mr-12 w-48 h-48 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none"></div>
             
-            <div class="flex items-center space-x-4">
-                <div id="stats-badge" class="hidden sm:flex items-center space-x-3 text-xs bg-slate-800/80 border border-slate-700 px-3 py-1.5 rounded-lg">
-                    <span class="text-slate-400">Total Audios: <strong id="stat-files" class="text-emerald-400">0</strong></span>
-                    <span class="text-slate-600">•</span>
-                    <span class="text-slate-400">Duration: <strong id="stat-duration" class="text-emerald-400">0m</strong></span>
+            <div class="text-center space-y-2">
+                <div class="w-14 h-14 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-lg shadow-emerald-500/30 mx-auto">
+                    <i data-lucide="mic" class="w-7 h-7 text-white"></i>
                 </div>
-                <a href="/docs" target="_blank" class="text-xs px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition flex items-center gap-1.5">
-                    <i data-lucide="code" class="w-3.5 h-3.5"></i>
-                    <span>Swagger API</span>
-                </a>
+                <h2 class="text-2xl font-bold text-white tracking-tight">Audio Summarizer</h2>
+                <p class="text-xs text-slate-400">Sign in with your centralized Second Brain credentials</p>
             </div>
+
+            <!-- Error Banner -->
+            <div id="login-error" class="hidden bg-red-950/60 border border-red-800 text-red-300 text-xs p-3 rounded-xl flex items-center gap-2">
+                <i data-lucide="alert-circle" class="w-4 h-4 shrink-0"></i>
+                <span id="login-error-text">Invalid email or password</span>
+            </div>
+
+            <form id="login-form" class="space-y-4">
+                <div class="space-y-1">
+                    <label class="text-xs font-semibold text-slate-300">Email Address</label>
+                    <input type="email" id="login-email" required placeholder="admin@leolab.app" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-emerald-500 transition">
+                </div>
+
+                <div class="space-y-1">
+                    <label class="text-xs font-semibold text-slate-300">Password</label>
+                    <input type="password" id="login-password" required placeholder="••••••••" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-emerald-500 transition">
+                </div>
+
+                <button type="submit" id="btn-login-submit" class="w-full bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-semibold py-3 rounded-xl shadow-lg shadow-emerald-500/25 transition duration-200 flex items-center justify-center gap-2">
+                    <span>Sign In</span>
+                    <i data-lucide="arrow-right" class="w-4 h-4"></i>
+                </button>
+            </form>
+
+            <p class="text-[11px] text-slate-500 text-center">Powered by Better Auth & Google Gemini</p>
         </div>
-    </header>
+    </div>
 
-    <!-- Main Content Container -->
-    <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
-        
-        <!-- Upload & Ingestion Section -->
-        <section class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl relative overflow-hidden">
-            <div class="absolute top-0 right-0 -mt-8 -mr-8 w-64 h-64 bg-emerald-500/5 rounded-full blur-3xl pointer-events-none"></div>
+    <!-- Main Dashboard Application -->
+    <div id="main-dashboard" class="hidden flex-1 flex flex-col">
+        <!-- Top Navigation Bar -->
+        <header class="border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-40">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+                <div class="flex items-center space-x-3">
+                    <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-lg shadow-emerald-500/20">
+                        <i data-lucide="mic" class="w-5 h-5 text-white"></i>
+                    </div>
+                    <div>
+                        <h1 class="text-lg font-bold text-white tracking-tight flex items-center gap-2">
+                            Audio Summarizer
+                            <span class="text-xs px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">v1.0</span>
+                        </h1>
+                        <p class="text-xs text-slate-400">Speech-to-Text & Gemini Knowledge Distillation</p>
+                    </div>
+                </div>
+                
+                <div class="flex items-center space-x-3 sm:space-x-4">
+                    <div id="stats-badge" class="hidden sm:flex items-center space-x-3 text-xs bg-slate-800/80 border border-slate-700 px-3 py-1.5 rounded-lg">
+                        <span class="text-slate-400">Total: <strong id="stat-files" class="text-emerald-400">0</strong></span>
+                        <span class="text-slate-600">•</span>
+                        <span class="text-slate-400">Duration: <strong id="stat-duration" class="text-emerald-400">0m</strong></span>
+                    </div>
+
+                    <!-- User Profile & Logout -->
+                    <div id="user-badge" class="flex items-center gap-2 bg-slate-800/80 border border-slate-700 px-3 py-1.5 rounded-lg text-xs">
+                        <i data-lucide="user" class="w-3.5 h-3.5 text-emerald-400"></i>
+                        <span id="user-email-text" class="text-slate-300 font-medium">user</span>
+                        <button id="btn-logout" title="Sign Out" class="text-slate-400 hover:text-red-400 pl-1.5 transition">
+                            <i data-lucide="log-out" class="w-3.5 h-3.5"></i>
+                        </button>
+                    </div>
+
+                    <a href="/docs" target="_blank" class="text-xs px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition flex items-center gap-1.5">
+                        <i data-lucide="code" class="w-3.5 h-3.5"></i>
+                        <span class="hidden sm:inline">Swagger API</span>
+                    </a>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content Container -->
+        <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
             
-            <div class="max-w-3xl mx-auto text-center space-y-4">
-                <h2 class="text-2xl font-bold text-white tracking-tight">Upload Speech Audio for Distillation</h2>
-                <p class="text-sm text-slate-400">
-                    Upload any MP3, WAV, M4A, OGG, or FLAC audio file. Gemini will transcribe the complete speech verbatim and synthesize structured executive notes.
-                </p>
+            <!-- Upload & Ingestion Section -->
+            <section class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl relative overflow-hidden">
+                <div class="absolute top-0 right-0 -mt-8 -mr-8 w-64 h-64 bg-emerald-500/5 rounded-full blur-3xl pointer-events-none"></div>
+                
+                <div class="max-w-3xl mx-auto text-center space-y-4">
+                    <h2 class="text-2xl font-bold text-white tracking-tight">Upload Speech Audio for Distillation</h2>
+                    <p class="text-sm text-slate-400">
+                        Upload any MP3, WAV, M4A, OGG, or FLAC audio file. Gemini will transcribe the complete speech verbatim and synthesize structured executive notes.
+                    </p>
 
-                <!-- Drag & Drop Zone -->
-                <div id="drop-zone" class="border-2 border-dashed border-slate-700 hover:border-emerald-500/60 bg-slate-950/60 hover:bg-slate-900/80 transition-all duration-200 rounded-xl p-8 cursor-pointer flex flex-col items-center justify-center space-y-3 group">
-                    <input type="file" id="audio-input" class="hidden" accept=".mp3,.wav,.m4a,.ogg,.flac,.aac,.webm">
-                    
-                    <div class="w-14 h-14 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 group-hover:scale-110 group-hover:bg-emerald-500/20 transition duration-200">
-                        <i data-lucide="upload-cloud" class="w-7 h-7"></i>
-                    </div>
-                    
-                    <div class="text-center">
-                        <p class="text-sm font-semibold text-slate-200">
-                            Click to browse or drag & drop your audio file here
-                        </p>
-                        <p class="text-xs text-slate-500 mt-1">MP3, WAV, M4A, OGG, FLAC, AAC up to 250MB</p>
+                    <!-- Drag & Drop Zone -->
+                    <div id="drop-zone" class="border-2 border-dashed border-slate-700 hover:border-emerald-500/60 bg-slate-950/60 hover:bg-slate-900/80 transition-all duration-200 rounded-xl p-8 cursor-pointer flex flex-col items-center justify-center space-y-3 group">
+                        <input type="file" id="audio-input" class="hidden" accept=".mp3,.wav,.m4a,.ogg,.flac,.aac,.webm">
+                        
+                        <div class="w-14 h-14 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 group-hover:scale-110 group-hover:bg-emerald-500/20 transition duration-200">
+                            <i data-lucide="upload-cloud" class="w-7 h-7"></i>
+                        </div>
+                        
+                        <div class="text-center">
+                            <p class="text-sm font-semibold text-slate-200">
+                                Click to browse or drag & drop your audio file here
+                            </p>
+                            <p class="text-xs text-slate-500 mt-1">MP3, WAV, M4A, OGG, FLAC, AAC up to 250MB</p>
+                        </div>
+
+                        <div id="selected-file-display" class="hidden items-center gap-2 bg-emerald-950/60 border border-emerald-800/60 px-3 py-1.5 rounded-lg text-xs text-emerald-300">
+                            <i data-lucide="file-audio" class="w-4 h-4"></i>
+                            <span id="selected-filename" class="font-medium">filename.mp3</span>
+                        </div>
                     </div>
 
-                    <div id="selected-file-display" class="hidden items-center gap-2 bg-emerald-950/60 border border-emerald-800/60 px-3 py-1.5 rounded-lg text-xs text-emerald-300">
-                        <i data-lucide="file-audio" class="w-4 h-4"></i>
-                        <span id="selected-filename" class="font-medium">filename.mp3</span>
+                    <!-- Optional Context & Submit Button -->
+                    <div class="flex flex-col sm:flex-row gap-3 pt-2 max-w-xl mx-auto">
+                        <input type="text" id="custom-title-input" placeholder="Optional topic or title context..." class="flex-1 bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-emerald-500">
+                        
+                        <button id="btn-process" class="bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-semibold px-6 py-2.5 rounded-xl shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/30 transition duration-200 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
+                            <i data-lucide="sparkles" class="w-4 h-4"></i>
+                            <span>Process & Summarize</span>
+                        </button>
+                    </div>
+
+                    <!-- Processing Progress Overlay -->
+                    <div id="processing-indicator" class="hidden pt-4 max-w-xl mx-auto text-left space-y-2">
+                        <div class="flex justify-between text-xs text-slate-300 font-medium">
+                            <span id="progress-status-text" class="flex items-center gap-2">
+                                <i data-lucide="loader-2" class="w-4 h-4 animate-spin text-emerald-400"></i>
+                                Uploading audio and transcribing speech...
+                            </span>
+                        </div>
+                        <div class="w-full bg-slate-800 rounded-full h-2 overflow-hidden">
+                            <div id="progress-bar-fill" class="bg-gradient-to-r from-emerald-500 to-teal-400 h-2 rounded-full w-full animate-pulse"></div>
+                        </div>
+                        <p class="text-[11px] text-slate-500 text-center">This may take 10–30 seconds depending on audio length.</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Archive & Filter Controls -->
+            <section class="space-y-4">
+                <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div>
+                        <h2 class="text-xl font-bold text-white tracking-tight">Audio Knowledge Archive</h2>
+                        <p class="text-xs text-slate-400">Browse, filter, and inspect your processed recordings</p>
+                    </div>
+
+                    <!-- Filter Controls -->
+                    <div class="flex flex-wrap items-center gap-3">
+                        <!-- Timeframe Filter Buttons -->
+                        <div class="flex items-center bg-slate-900 border border-slate-800 p-1 rounded-xl text-xs">
+                            <button data-timeframe="all" class="tf-btn px-3 py-1.5 rounded-lg font-medium transition bg-emerald-500 text-white">All Time</button>
+                            <button data-timeframe="last_week" class="tf-btn px-3 py-1.5 rounded-lg font-medium transition text-slate-400 hover:text-white">Last Week</button>
+                            <button data-timeframe="last_month" class="tf-btn px-3 py-1.5 rounded-lg font-medium transition text-slate-400 hover:text-white">Last Month</button>
+                            <button data-timeframe="last_year" class="tf-btn px-3 py-1.5 rounded-lg font-medium transition text-slate-400 hover:text-white">Last Year</button>
+                        </div>
+
+                        <!-- Search Input -->
+                        <div class="relative min-w-[240px]">
+                            <i data-lucide="search" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500"></i>
+                            <input type="text" id="search-input" placeholder="Search transcripts & tags..." class="w-full bg-slate-900 border border-slate-800 rounded-xl pl-9 pr-4 py-1.5 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-emerald-500">
+                        </div>
                     </div>
                 </div>
 
-                <!-- Optional Context & Submit Button -->
-                <div class="flex flex-col sm:flex-row gap-3 pt-2 max-w-xl mx-auto">
-                    <input type="text" id="custom-title-input" placeholder="Optional topic or title context..." class="flex-1 bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-emerald-500">
-                    
-                    <button id="btn-process" class="bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-semibold px-6 py-2.5 rounded-xl shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/30 transition duration-200 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
-                        <i data-lucide="sparkles" class="w-4 h-4"></i>
-                        <span>Process & Summarize</span>
-                    </button>
+                <!-- Audio Cards Grid / Table -->
+                <div id="records-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <!-- Record Cards injected via app.js -->
                 </div>
 
-                <!-- Processing Progress Overlay -->
-                <div id="processing-indicator" class="hidden pt-4 max-w-xl mx-auto text-left space-y-2">
-                    <div class="flex justify-between text-xs text-slate-300 font-medium">
-                        <span id="progress-status-text" class="flex items-center gap-2">
-                            <i data-lucide="loader-2" class="w-4 h-4 animate-spin text-emerald-400"></i>
-                            Uploading audio and transcribing speech...
-                        </span>
+                <!-- Empty State -->
+                <div id="empty-state" class="hidden bg-slate-900/50 border border-slate-800/80 rounded-2xl p-12 text-center space-y-3">
+                    <div class="w-12 h-12 rounded-full bg-slate-800 flex items-center justify-center mx-auto text-slate-500">
+                        <i data-lucide="inbox" class="w-6 h-6"></i>
                     </div>
-                    <div class="w-full bg-slate-800 rounded-full h-2 overflow-hidden">
-                        <div id="progress-bar-fill" class="bg-gradient-to-r from-emerald-500 to-teal-400 h-2 rounded-full w-full animate-pulse"></div>
-                    </div>
-                    <p class="text-[11px] text-slate-500 text-center">This may take 10–30 seconds depending on audio length.</p>
+                    <h3 class="text-sm font-semibold text-slate-300">No Audio Records Found</h3>
+                    <p class="text-xs text-slate-500 max-w-sm mx-auto">Upload an audio recording above to transcribe speech and generate executive summaries.</p>
                 </div>
-            </div>
-        </section>
-
-        <!-- Archive & Filter Controls -->
-        <section class="space-y-4">
-            <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div>
-                    <h2 class="text-xl font-bold text-white tracking-tight">Audio Knowledge Archive</h2>
-                    <p class="text-xs text-slate-400">Browse, filter, and inspect your processed recordings</p>
-                </div>
-
-                <!-- Filter Controls -->
-                <div class="flex flex-wrap items-center gap-3">
-                    <!-- Timeframe Filter Buttons -->
-                    <div class="flex items-center bg-slate-900 border border-slate-800 p-1 rounded-xl text-xs">
-                        <button data-timeframe="all" class="tf-btn px-3 py-1.5 rounded-lg font-medium transition bg-emerald-500 text-white">All Time</button>
-                        <button data-timeframe="last_week" class="tf-btn px-3 py-1.5 rounded-lg font-medium transition text-slate-400 hover:text-white">Last Week</button>
-                        <button data-timeframe="last_month" class="tf-btn px-3 py-1.5 rounded-lg font-medium transition text-slate-400 hover:text-white">Last Month</button>
-                        <button data-timeframe="last_year" class="tf-btn px-3 py-1.5 rounded-lg font-medium transition text-slate-400 hover:text-white">Last Year</button>
-                    </div>
-
-                    <!-- Search Input -->
-                    <div class="relative min-w-[240px]">
-                        <i data-lucide="search" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500"></i>
-                        <input type="text" id="search-input" placeholder="Search transcripts & tags..." class="w-full bg-slate-900 border border-slate-800 rounded-xl pl-9 pr-4 py-1.5 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-emerald-500">
-                    </div>
-                </div>
-            </div>
-
-            <!-- Audio Cards Grid / Table -->
-            <div id="records-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                <!-- Record Cards injected via app.js -->
-            </div>
-
-            <!-- Empty State -->
-            <div id="empty-state" class="hidden bg-slate-900/50 border border-slate-800/80 rounded-2xl p-12 text-center space-y-3">
-                <div class="w-12 h-12 rounded-full bg-slate-800 flex items-center justify-center mx-auto text-slate-500">
-                    <i data-lucide="inbox" class="w-6 h-6"></i>
-                </div>
-                <h3 class="text-sm font-semibold text-slate-300">No Audio Records Found</h3>
-                <p class="text-xs text-slate-500 max-w-sm mx-auto">Upload an audio recording above to transcribe speech and generate executive summaries.</p>
-            </div>
-        </section>
-    </main>
+            </section>
+        </main>
+    </div>
 
     <!-- Modal for Detailed Record Viewer -->
     <div id="detail-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
