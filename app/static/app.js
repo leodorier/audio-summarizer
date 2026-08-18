@@ -55,17 +55,17 @@ function showLoginScreen() {
 function showDashboard() {
     const loginScreen = document.getElementById('login-screen');
     const mainDashboard = document.getElementById('main-dashboard');
-    const userEmailText = document.getElementById('user-email-text');
+    const userTextEl = document.getElementById('user-name-text') || document.getElementById('user-email-text');
 
     if (loginScreen) loginScreen.classList.add('hidden');
     if (mainDashboard) mainDashboard.classList.remove('hidden');
     
-    if (userEmailText && currentUser) {
+    if (userTextEl && currentUser) {
         const displayName = currentUser.name || currentUser.username || (currentUser.email ? currentUser.email.split('@')[0] : 'User');
-        userEmailText.textContent = displayName;
+        userTextEl.textContent = displayName;
     }
 
-    lucide.createIcons();
+    if (window.lucide) lucide.createIcons();
     fetchStats();
     fetchRecords();
 }
@@ -217,6 +217,12 @@ function setupEventListeners() {
             }, 300);
         });
     }
+
+    // Settings button
+    document.getElementById('btn-settings')?.addEventListener('click', (e) => {
+        if (e && e.preventDefault) e.preventDefault();
+        openSettingsModal();
+    });
 
     // Modal controls
     document.getElementById('btn-close-modal')?.addEventListener('click', closeModal);
@@ -676,3 +682,14 @@ function deleteGeminiKey() {
     updateGeminiKeyBadge('');
     showSettingsAlert('🗑️ Custom Gemini API key removed. Reverted to server configuration.', 'info');
 }
+
+
+// Expose functions to global window for inline onclick handlers
+window.openSettingsModal = openSettingsModal;
+window.closeSettingsModal = closeSettingsModal;
+window.closeSettingsModalOnOverlay = closeSettingsModalOnOverlay;
+window.toggleGeminiKeyVisibility = toggleGeminiKeyVisibility;
+window.testGeminiKey = testGeminiKey;
+window.saveGeminiKey = saveGeminiKey;
+window.deleteGeminiKey = deleteGeminiKey;
+window.handleLogout = handleLogout;
