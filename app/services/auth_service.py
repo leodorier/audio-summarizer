@@ -13,6 +13,14 @@ OWNER_EMAILS = {"leo.dorier@outlook.com", "dragstonium@leolab.app", "admin@leola
 OWNER_IDS = {"GI9AxAIjhshTIiW9Q6HEw2vSvEE9V82P", "dev-user", "test-admin"}
 
 
+def invalidate_session(token: Optional[str] = None):
+    """Purges session from local cache upon logout."""
+    if token and token in _SESSION_CACHE:
+        del _SESSION_CACHE[token]
+    elif not token:
+        _SESSION_CACHE.clear()
+
+
 def is_owner(actor: Optional[Dict[str, Any]] = None) -> bool:
     """Checks whether the actor is the owner account (dragstonium)."""
     if not actor:

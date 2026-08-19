@@ -25,7 +25,7 @@ from app.schemas import (
 )
 from app.services.processor import process_audio_file
 from app.services.storage_manager import delete_stored_files
-from app.services.auth_service import verify_session, sign_in_better_auth
+from app.services.auth_service import verify_session, sign_in_better_auth, invalidate_session
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -40,10 +40,10 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# Enable CORS
+# Enable CORS (Strict domain whitelist regex)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origin_regex=r"^https://.*\.leolab\.app$|^http://localhost(:\d+)?$",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -98,8 +98,15 @@ async def api_auth_login(req: LoginRequest):
     return resp
 
 @app.post("/api/auth/logout")
-async def api_auth_logout():
-    """Logs out operator by clearing session cookies."""
+async def api_auth_logout(request: Request):
+    """Logs out operator by clearing session cookies and invalidating in-memory cache."""
+    token = (
+        request.cookies.get("better-auth.session_token")
+        or request.cookies.get("__Secure-better-auth.session_token")
+        or request.cookies.get("session_token")
+    )
+    invalidate_session(token)
+
     resp = JSONResponse({"success": True, "message": "Signed out successfully."})
     for cookie_name in ["better-auth.session_token", "__Secure-better-auth.session_token", "session_token"]:
         resp.delete_cookie(cookie_name, path="/")
@@ -123,11 +130,13 @@ def favicon_svg():
 # Core Application Endpoints
 # ==========================================
 
+@app.get("/health")
 @app.get("/api/health")
 def health_check():
     return {
         "status": "healthy",
         "app": settings.APP_NAME,
+        "service": "audio-summarizer",
         "version": settings.APP_VERSION,
         "environment": settings.ENVIRONMENT,
         "auth_enabled": settings.AUTH_ENABLED
