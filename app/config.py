@@ -16,8 +16,8 @@ class Settings(BaseSettings):
     
     # Better Auth Configuration
     AUTH_ENABLED: bool = True
-    BETTER_AUTH_API_URL: str = "http://second-brain-brain-api:8787"
-    FALLBACK_AUTH_API_URL: str = "https://api-brain.leolab.app"
+    BETTER_AUTH_API_URL: str = "http://leolab-auth:3000"
+    FALLBACK_AUTH_API_URL: str = "https://auth.leolab.app"
     
     # Gemini API
     GEMINI_API_KEY: str = ""
