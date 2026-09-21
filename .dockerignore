@@ -1,0 +1,33 @@
+# Version control / metadata
+.git
+.gitignore
+
+# Secrets / env (keep the placeholder example)
+.env
+.env.*
+!.env.example
+
+# Node / frontend build artifacts
+node_modules
+dist
+build
+.next
+
+# Python artifacts
+__pycache__
+*.pyc
+.venv
+venv
+.pytest_cache
+
+# Tests, docs and tooling config
+tests
+*.md
+*.log
+.repowise
+.mcp.json
+AGENTS.md
+.vscode
+
+# Host-managed persistent data (bind-mounted at runtime)
+storage

@@ -1,4 +1,5 @@
 import pytest
+import time
 from unittest.mock import patch, MagicMock
 from fastapi.testclient import TestClient
 from app.main import app
@@ -124,3 +125,36 @@ def test_non_owner_upload_allowed_with_custom_key(client, sample_audio_file, moc
                 )
             assert res.status_code == 201
             assert res.json()["title"] == "Test Allowed"
+
+
+def test_session_cache_is_bounded():
+    """The session cache evicts oldest entries instead of growing without bound."""
+    import app.services.auth_service as auth_service
+
+    saved = auth_service._SESSION_CACHE.copy()
+    try:
+        auth_service._SESSION_CACHE.clear()
+        overflow = 50
+        for i in range(auth_service.SESSION_CACHE_MAX_ENTRIES + overflow):
+            auth_service._cache_put(f"token-{i}", {"id": f"user-{i}"}, time.time() + 60)
+
+        assert len(auth_service._SESSION_CACHE) == auth_service.SESSION_CACHE_MAX_ENTRIES
+        # Oldest tokens are evicted first; the most recent ones remain.
+        assert "token-0" not in auth_service._SESSION_CACHE
+        newest = auth_service.SESSION_CACHE_MAX_ENTRIES + overflow - 1
+        assert f"token-{newest}" in auth_service._SESSION_CACHE
+    finally:
+        auth_service._SESSION_CACHE.clear()
+        auth_service._SESSION_CACHE.update(saved)
+
+
+def test_production_failsafe_detects_production(monkeypatch):
+    """AUTH_ENABLED=false fail-safe only treats production/prod as production."""
+    from app import main as main_module
+
+    monkeypatch.setattr(settings, "ENVIRONMENT", "production")
+    assert main_module._is_production() is True
+    monkeypatch.setattr(settings, "ENVIRONMENT", "PROD")
+    assert main_module._is_production() is True
+    monkeypatch.setattr(settings, "ENVIRONMENT", "development")
+    assert main_module._is_production() is False

@@ -59,3 +59,30 @@ def test_upload_and_query_flow(client, sample_audio_file, mock_extraction):
     # 6. Verify 404 after deletion
     res_after = client.get(f"/api/files/{record_id}")
     assert res_after.status_code == 404
+
+
+def test_upload_rejects_oversized_file(client, sample_audio_file, monkeypatch):
+    """MAX_UPLOAD_SIZE_BYTES is enforced while streaming the upload to disk."""
+    monkeypatch.setattr(settings, "MAX_UPLOAD_SIZE_BYTES", 100)
+    with open(sample_audio_file, "rb") as f:
+        res = client.post(
+            "/api/upload",
+            files={"file": ("speech.mp3", f, "audio/mp3")},
+            data={"title": "Too Big"}
+        )
+    assert res.status_code == 413
+    assert "volumineux" in res.json()["detail"]
+
+
+def test_upload_processing_error_is_generic(client, sample_audio_file):
+    """Internal exception details must not leak to the client."""
+    with patch("app.main.process_audio_file", side_effect=RuntimeError("boom-internal-detail")):
+        with open(sample_audio_file, "rb") as f:
+            res = client.post(
+                "/api/upload",
+                files={"file": ("speech.mp3", f, "audio/mp3")},
+                data={"title": "Boom"}
+            )
+    assert res.status_code == 500
+    assert "boom-internal-detail" not in res.text
+    assert res.json()["detail"] == "Processing failed. Please try again."

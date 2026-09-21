@@ -1,5 +1,5 @@
+import logging
 import os
-import shutil
 import tempfile
 from pathlib import Path
 from typing import Optional, List, Dict, Any
@@ -26,11 +26,47 @@ from app.schemas import (
 from app.services.processor import process_audio_file
 from app.services.storage_manager import delete_stored_files
 from app.services.auth_service import verify_session, sign_in_better_auth, invalidate_session
+from app.rate_limit import build_login_rate_limiter, client_ip_from_request
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+)
+logger = logging.getLogger("audio_summarizer")
+
+# In-process brute-force protection for the unauthenticated login endpoint.
+_login_rate_limiter = build_login_rate_limiter(
+    settings.LOGIN_RATE_LIMIT_ATTEMPTS,
+    settings.LOGIN_RATE_LIMIT_WINDOW_SECONDS,
+)
+
+# Read size used while streaming uploads to a temp file.
+_UPLOAD_CHUNK_SIZE = 1024 * 1024
+# Multipart framing overhead allowance used for the cheap Content-Length pre-check.
+_UPLOAD_MULTIPART_OVERHEAD = 1024 * 1024
+
+# Environment names that count as production for the AUTH_ENABLED fail-safe.
+_PRODUCTION_ENVIRONMENTS = {"production", "prod"}
+
+
+def _is_production() -> bool:
+    return settings.ENVIRONMENT.strip().lower() in _PRODUCTION_ENVIRONMENTS
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Initialize SQLite database on startup
     init_db()
+    # Fail-safe (loud, non-fatal): disabling auth in production disables
+    # authentication for every endpoint and treats every caller as the owner.
+    if not settings.AUTH_ENABLED and _is_production():
+        logger.error(
+            "SECURITY: AUTH_ENABLED=false while ENVIRONMENT=%r. Every request is "
+            "treated as the owner account and authentication is effectively "
+            "disabled. This must never be used in production; set AUTH_ENABLED=true "
+            "or run with ENVIRONMENT=development.",
+            settings.ENVIRONMENT,
+        )
     yield
 
 app = FastAPI(
@@ -52,6 +88,14 @@ app.add_middleware(
 class LoginRequest(BaseModel):
     email: str
     password: str
+
+def _format_size(num_bytes: int) -> str:
+    if num_bytes >= 1024 * 1024:
+        return f"{num_bytes / (1024 * 1024):.0f} Mo"
+    if num_bytes >= 1024:
+        return f"{num_bytes / 1024:.0f} Ko"
+    return f"{num_bytes} octets"
+
 
 async def get_current_actor(request: Request) -> Dict[str, Any]:
     """Dependency to authenticate operator session."""
@@ -82,8 +126,17 @@ async def api_auth_me(request: Request):
     return {"authenticated": True, "user": actor}
 
 @app.post("/api/auth/login")
-async def api_auth_login(req: LoginRequest):
+async def api_auth_login(req: LoginRequest, request: Request):
     """Authenticates operator credentials against Better Auth."""
+    client_ip = client_ip_from_request(request)
+    if not _login_rate_limiter.allow(client_ip):
+        logger.warning("Login rate limit exceeded for %s", client_ip)
+        return JSONResponse(
+            {"success": False, "error": "Trop de tentatives. Réessayez plus tard."},
+            status_code=429,
+            headers={"Retry-After": str(settings.LOGIN_RATE_LIMIT_WINDOW_SECONDS)},
+        )
+
     success, user, error_msg, raw_cookies = sign_in_better_auth(req.email, req.password)
     if not success:
         return JSONResponse(
@@ -168,8 +221,13 @@ async def verify_gemini_key(req: VerifyGeminiRequest, actor: Dict[str, Any] = De
         if resp and resp.text:
             return {"valid": True, "model": "gemini-2.5-flash-lite"}
         return {"valid": False, "error": "Réponse vide de l'API Gemini."}
-    except Exception as e:
-        return JSONResponse({"valid": False, "error": str(e)}, status_code=400)
+    except Exception:
+        # Log the provider error server-side; never echo it to the client.
+        logger.exception("Gemini key verification failed")
+        return JSONResponse(
+            {"valid": False, "error": "Vérification impossible. Vérifiez la clé API et réessayez."},
+            status_code=400
+        )
 
 @app.post("/api/upload", response_model=AudioRecordResponse, status_code=status.HTTP_201_CREATED)
 async def upload_audio(
@@ -191,22 +249,52 @@ async def upload_audio(
             status_code=400,
             detail=f"Unsupported audio format '{ext}'. Allowed formats: {', '.join(sorted(allowed_exts))}"
         )
-    
-    # Save temporary file to disk for processing
-    with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as tmp:
-        shutil.copyfileobj(file.file, tmp)
-        tmp_path = Path(tmp.name)
-    
-    custom_key = (api_key or request.headers.get("x-gemini-api-key") or "").strip()
-    user_is_owner = actor.get("is_owner", False)
 
-    if not custom_key and not user_is_owner:
-        raise HTTPException(
-            status_code=428,
-            detail="Clé API Google Gemini requise. Veuillez configurer votre clé personnelle dans les paramètres."
-        )
+    max_upload_bytes = settings.MAX_UPLOAD_SIZE_BYTES
+    size_limit_human = _format_size(max_upload_bytes)
 
+    # Cheap pre-check: reject large bodies before touching disk. The multipart
+    # framing overhead allowance keeps a file at the limit from being rejected.
+    content_length = request.headers.get("content-length")
+    if content_length and content_length.isdigit():
+        if int(content_length) > max_upload_bytes + _UPLOAD_MULTIPART_OVERHEAD:
+            logger.warning(
+                "Rejected oversized upload (Content-Length=%s, limit=%s)",
+                content_length, max_upload_bytes,
+            )
+            raise HTTPException(
+                status_code=413,
+                detail=f"Fichier trop volumineux. Taille maximale: {size_limit_human}."
+            )
+
+    # Save temporary file to disk for processing, enforcing the cap while
+    # streaming so a missing/forged Content-Length cannot exhaust disk.
+    tmp_path: Optional[Path] = None
     try:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as tmp:
+            tmp_path = Path(tmp.name)
+            written = 0
+            while True:
+                chunk = file.file.read(_UPLOAD_CHUNK_SIZE)
+                if not chunk:
+                    break
+                written += len(chunk)
+                if written > max_upload_bytes:
+                    raise HTTPException(
+                        status_code=413,
+                        detail=f"Fichier trop volumineux. Taille maximale: {size_limit_human}."
+                    )
+                tmp.write(chunk)
+
+        custom_key = (api_key or request.headers.get("x-gemini-api-key") or "").strip()
+        user_is_owner = actor.get("is_owner", False)
+
+        if not custom_key and not user_is_owner:
+            raise HTTPException(
+                status_code=428,
+                detail="Clé API Google Gemini requise. Veuillez configurer votre clé personnelle dans les paramètres."
+            )
+
         record = process_audio_file(
             source_audio_path=tmp_path,
             original_filename=filename,
@@ -215,13 +303,20 @@ async def upload_audio(
             model_name=model
         )
         return record
+    except HTTPException:
+        raise
     except ValueError as ve:
         raise HTTPException(status_code=400, detail=str(ve))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Processing failed: {str(e)}")
+    except Exception:
+        # Log the full traceback server-side; return a generic message to clients.
+        logger.exception("Audio processing failed for upload %r", filename)
+        raise HTTPException(status_code=500, detail="Processing failed. Please try again.")
     finally:
-        if tmp_path.exists():
-            tmp_path.unlink()
+        if tmp_path is not None and tmp_path.exists():
+            try:
+                tmp_path.unlink()
+            except OSError:
+                logger.warning("Could not remove temporary upload %s", tmp_path)
 
 @app.get("/api/files", response_model=AudioRecordListResponse)
 def list_audio_files(
