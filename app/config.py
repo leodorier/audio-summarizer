@@ -32,6 +32,10 @@ class Settings(BaseSettings):
     
     # Max file upload size (default 250MB)
     MAX_UPLOAD_SIZE_BYTES: int = 250 * 1024 * 1024
+
+    # Brute-force protection for /api/auth/login (in-process, per client IP)
+    LOGIN_RATE_LIMIT_ATTEMPTS: int = 10
+    LOGIN_RATE_LIMIT_WINDOW_SECONDS: int = 60
     
     model_config = SettingsConfigDict(
         env_file=str(PROJECT_ROOT / ".env"),

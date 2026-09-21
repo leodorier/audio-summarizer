@@ -1,12 +1,39 @@
 import os
 import time
 import httpx
+from collections import OrderedDict
 from typing import Optional, Dict, Any, Tuple, List
 from app.config import settings
 
-# In-memory session cache: token -> (user_dict, expires_timestamp)
-_SESSION_CACHE: Dict[str, Tuple[Dict[str, Any], float]] = {}
+# In-memory session cache: token -> (user_dict, expires_timestamp).
+# Bounded to SESSION_CACHE_MAX_ENTRIES with oldest-first (LRU) eviction, so an
+# attacker sending a flood of distinct session tokens cannot grow process memory
+# without bound. Entries still expire after CACHE_TTL_SECONDS.
+_SESSION_CACHE: "OrderedDict[str, Tuple[Dict[str, Any], float]]" = OrderedDict()
 CACHE_TTL_SECONDS = 60.0
+SESSION_CACHE_MAX_ENTRIES = 1000
+
+
+def _cache_put(token: str, actor: Dict[str, Any], expires_at: float) -> None:
+    """Stores a verified session, evicting the oldest entry past the cap."""
+    _SESSION_CACHE[token] = (actor, expires_at)
+    _SESSION_CACHE.move_to_end(token)
+    while len(_SESSION_CACHE) > SESSION_CACHE_MAX_ENTRIES:
+        _SESSION_CACHE.popitem(last=False)
+
+
+def _cache_get(token: str, now: float) -> Optional[Dict[str, Any]]:
+    """Returns a cached actor when the token is still valid, else None."""
+    entry = _SESSION_CACHE.get(token)
+    if entry is None:
+        return None
+    user_info, exp = entry
+    if now < exp:
+        # Mark as recently used so hot sessions survive eviction pressure.
+        _SESSION_CACHE.move_to_end(token)
+        return user_info
+    del _SESSION_CACHE[token]
+    return None
 
 OWNER_USERNAMES = {"dragstonium"}
 OWNER_EMAILS = {"leo.dorier@outlook.com", "dragstonium@leolab.app", "admin@leolab.app"}
@@ -89,12 +116,10 @@ def verify_session(cookies: Dict[str, str], headers: Dict[str, str]) -> Optional
 
     # Check local cache first
     now = time.time()
-    if token and token in _SESSION_CACHE:
-        user_info, exp = _SESSION_CACHE[token]
-        if now < exp:
-            return user_info
-        else:
-            del _SESSION_CACHE[token]
+    if token:
+        cached = _cache_get(token, now)
+        if cached is not None:
+            return cached
 
     # Build cookie string
     cookie_str = "; ".join([f"{k}={v}" for k, v in cookies.items()])
@@ -117,7 +142,7 @@ def verify_session(cookies: Dict[str, str], headers: Dict[str, str]) -> Optional
                     if data and isinstance(data, dict) and "user" in data:
                         actor = _format_user_actor(data["user"])
                         if token:
-                            _SESSION_CACHE[token] = (actor, now + CACHE_TTL_SECONDS)
+                            _cache_put(token, actor, now + CACHE_TTL_SECONDS)
                         return actor
         except Exception:
             continue
