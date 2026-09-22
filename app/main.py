@@ -25,7 +25,7 @@ from app.schemas import (
 )
 from app.services.processor import process_audio_file
 from app.services.storage_manager import delete_stored_files
-from app.services.auth_service import verify_session, sign_in_better_auth, invalidate_session
+from app.services.auth_service import verify_session, sign_in_better_auth, invalidate_session, sign_out_better_auth
 from app.rate_limit import build_login_rate_limiter, client_ip_from_request
 
 logging.basicConfig(
@@ -152,7 +152,7 @@ async def api_auth_login(req: LoginRequest, request: Request):
 
 @app.post("/api/auth/logout")
 async def api_auth_logout(request: Request):
-    """Logs out operator by clearing session cookies and invalidating in-memory cache."""
+    """Logs out operator by revoking session in Better Auth, clearing session cookies and invalidating in-memory cache."""
     token = (
         request.cookies.get("better-auth.session_token")
         or request.cookies.get("__Secure-better-auth.session_token")
@@ -160,9 +160,25 @@ async def api_auth_logout(request: Request):
     )
     invalidate_session(token)
 
+    # Centrally revoke the session in Better Auth
+    raw_cookies = sign_out_better_auth(dict(request.cookies), dict(request.headers))
+
     resp = JSONResponse({"success": True, "message": "Signed out successfully."})
-    for cookie_name in ["better-auth.session_token", "__Secure-better-auth.session_token", "session_token"]:
-        resp.delete_cookie(cookie_name, path="/")
+    for cookie_header in raw_cookies:
+        resp.headers.append("set-cookie", cookie_header)
+
+    # Explicit fallback deletion with all security attributes
+    for cookie_name in [
+        "better-auth.session_token",
+        "__Secure-better-auth.session_token",
+        "better-auth.session_data",
+        "__Secure-better-auth.session_data",
+        "better-auth.dont_remember",
+        "__Secure-better-auth.dont_remember",
+        "session_token",
+    ]:
+        resp.delete_cookie(cookie_name, domain=".leolab.app", path="/", secure=True, httponly=True, samesite="lax")
+        resp.delete_cookie(cookie_name, path="/", secure=True, httponly=True, samesite="lax")
     return resp
 
 @app.get("/favicon.ico", include_in_schema=False)

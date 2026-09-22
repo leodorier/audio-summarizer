@@ -123,7 +123,7 @@ async function handleLogout() {
         await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
     } catch (e) {}
     currentUser = null;
-    showLoginScreen();
+    window.location.href = "https://auth.leolab.app/login?redirect=https://audiosum.leolab.app/";
 }
 
 // Expose globally

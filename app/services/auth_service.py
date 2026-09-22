@@ -48,6 +48,35 @@ def invalidate_session(token: Optional[str] = None):
         _SESSION_CACHE.clear()
 
 
+def sign_out_better_auth(cookies: Dict[str, str], headers: Dict[str, str]) -> List[str]:
+    """
+    Calls Better Auth sign-out endpoint to revoke session on central identity store.
+    Returns any Set-Cookie headers returned by Better Auth.
+    """
+    cookie_str = "; ".join([f"{k}={v}" for k, v in cookies.items()])
+    fwd_headers = {
+        "User-Agent": "AudioSummarizer-FastAPI/1.0",
+        "Accept": "application/json",
+        "Content-Type": "application/json",
+        "Origin": "https://auth.leolab.app",
+    }
+    if cookie_str:
+        fwd_headers["Cookie"] = cookie_str
+    if "authorization" in headers:
+        fwd_headers["Authorization"] = headers["authorization"]
+
+    for base_url in _get_api_urls():
+        try:
+            url = f"{base_url.rstrip('/')}/api/auth/sign-out"
+            with httpx.Client(timeout=4.0) as client:
+                res = client.post(url, json={}, headers=fwd_headers)
+                if res.status_code == 200:
+                    return res.headers.get_list("set-cookie")
+        except Exception:
+            continue
+    return []
+
+
 def is_owner(actor: Optional[Dict[str, Any]] = None) -> bool:
     """Checks whether the actor is the owner account (dragstonium)."""
     if not actor:
