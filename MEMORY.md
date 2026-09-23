@@ -6,9 +6,9 @@
 `audio-summarizer` is a microservice and web portal designed to ingest speech audio files, transcribe them to text (STT), distill structured executive summaries via Google Gemini, and persist the outputs into separate Markdown/text files alongside SQLite metadata.
 
 ### Architecture Decisions
-- **Centralized Better Auth Proxy**:
-  - *Decision*: Secure the web portal and API routes using the centralized Better Auth gateway (`second-brain-brain-api:8787` on Docker network, fallback: `https://api-brain.leolab.app`).
-  - *Rationale*: Unified single sign-on across the whole suite (`ai-tool`, `instagram-extractor`, and `audio-summarizer`), with TTL session caching (60s) to minimize cross-container latency.
+- **Central `leolab-auth` SSO**:
+  - *Decision*: Secure the web portal and API routes against the central `leolab-auth` store (`http://leolab-auth:3000` on the Docker network, fallback: `https://auth.leolab.app`).
+  - *Rationale*: One identity store for the whole suite (`ai-tool`, `instagram-extractor`, and `audio-summarizer`), with TTL session caching (60s) to minimize cross-container latency.
 - **Gemini Multimodal Audio vs Local Whisper**:
   - *Decision*: Leverage Google Gemini File API (`google-genai` SDK, `gemini-2.5-flash` / `gemini-3.7-flash`) for combined verbatim STT and structured knowledge distillation.
   - *Rationale*: Zero heavy local GPU overhead, handles long-form audio files in standard audio containers, produces both verbatim speech transcript and structured JSON summaries in a single unified pass.
@@ -42,7 +42,7 @@
 - **Domain**: `https://audiosum.leolab.app`
 - **Container Name**: `audio-summarizer`
 - **Internal Port**: `8000`
-- **Better Auth Endpoint**: `http://second-brain-brain-api:8787` (Fallback: `https://api-brain.leolab.app`)
+- **Central SSO Endpoint**: `http://leolab-auth:3000` (Fallback: `https://auth.leolab.app`)
 - **Storage Directory**: `/home/leo/projects/audio-summarizer/storage`
   - `uploads/`: Saved audio files
   - `transcripts/`: Full `.txt` and `.md` transcripts
