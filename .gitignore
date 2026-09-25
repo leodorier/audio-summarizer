@@ -77,3 +77,9 @@ logs/
 Thumbs.db
 *.tmp
 .mcp.json
+
+# Harness (machine-local, absolute paths)
+opencode.json
+
+# Harness (machine-local, absolute paths)
+*.harness-bak

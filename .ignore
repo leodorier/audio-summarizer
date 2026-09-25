@@ -1,0 +1,15 @@
+node_modules/
+.next/
+out/
+dist/
+build/
+.venv/
+venv/
+__pycache__/
+.pytest_cache/
+.repowise/
+coverage/
+storage/
+*.pack
+*.log
+*.tsbuildinfo
